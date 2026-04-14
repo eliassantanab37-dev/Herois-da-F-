@@ -1,0 +1,1744 @@
+/* ═══════════════════════════════════════════════════════════
+   HERÓIS DA FÉ - STYLESHEET COMPLETO v2.0
+   ═══════════════════════════════════════════════════════════ */
+
+   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Poppins:wght@300;400;600&display=swap');
+
+:root {
+    --gold: #d4af37;
+    --gold-bright: #ffdf00;
+    --dark-bg: rgba(0, 0, 0, 0.9);
+}
+/* VARIÁVEIS CSS */
+:root {
+    --gold: #d4af37;
+    --gold-bright: #ffff00;
+    --gold-dark: #b8941f;
+    --dark-bg: #020202ec;
+    --card-bg: #141412;
+    --text-color: #e0e0e0;
+    --text-light: #888;
+    --online-green: #2ecc71;
+    --border-color: #4a494953;
+    --error-red: #ff5555;
+    --success-green: #2ecc71;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ───────────────────────────────────────────────────────────
+   RESET E BASE
+   ─────────────────────────────────────────────────────────── */
+* {
+    box-sizing: border-box;
+    transition: var(--transition);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background-color: var(--dark-bg);
+    color: var(--text-color);
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ───────────────────────────────────────────────────────────
+   BARRA DE NAVEGAÇÃO SUPERIOR
+   ─────────────────────────────────────────────────────────── */
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: #000;
+    border-bottom: 3px solid var(--gold);
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AJUSTES PARA BOTÃO MENU - Substituir em seu style.css
+   ═══════════════════════════════════════════════════════════ */
+
+/* DESKTOP - Botão MENU */
+.menu-icon {
+    background: none;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    letter-spacing: 1px;
+    transition: var(--transition);
+    font-family: 'Cinzel', serif;
+}
+
+.menu-icon:hover {
+    background: var(--gold);
+    color: black;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+.menu-icon:active {
+    transform: scale(0.95);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AJUSTES PARA BOTÃO MENU - VERSÃO REDUZIDA
+   ═══════════════════════════════════════════════════════════ */
+
+/* MOBILE - Botão MENU (Abaixo de 768px) */
+@media (max-width: 768px) {
+    .menu-icon {
+        order: 1;
+        margin: 0;
+        font-size: 0.7rem; 
+        padding: 4px 6px; /* Padding lateral bem reduzido */
+        border: 1px solid var(--gold);
+        border-radius: 4px;
+        flex: 0 0 auto;
+        min-width: 40px; /* Largura mínima bem pequena */
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+}
+
+/* MOBILE PEQUENO (Abaixo de 480px) */
+@media (max-width: 480px) {
+    .menu-icon {
+        font-size: 0.51rem;
+        padding: 2px 4px;
+        min-width: 35px; /* Quase o tamanho de um ícone apenas */
+        height: 26px;
+        gap: 0;
+    }
+
+    /* Se o texto "MENU" ainda estiver a ocupar espaço, 
+       podemos escondê-lo e deixar apenas o ícone de 3 risquinhos ☰ */
+    .menu-icon span { 
+        display: none; 
+    }
+
+    .nav-buttons {
+        gap: 3px; /* Estreita o espaço entre os botões centrais */
+    }
+}
+
+/* Botões do Menu Sidebar */
+.menu-btn-custom {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.05);
+    color: white;
+    border: 1px solid #333;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: all 0.3s;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.95rem;
+}
+
+.menu-btn-custom:hover {
+    background: rgba(212,175,55,0.2);
+    border-color: #d4af37;
+    transform: translateX(4px);
+}
+.nav-buttons {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    justify-content: center;
+}
+
+.nav-buttons button {
+    background: none;
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 6px;
+    letter-spacing: 1px;
+    transition: var(--transition);
+}
+
+.nav-buttons button:hover {
+    background: var(--gold);
+    color: black;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.logo-text {
+    font-family: 'Cinzel', serif;
+    color: var(--gold);
+    font-weight: 900;
+    font-size: 1.1rem;
+    letter-spacing: 3px;
+    white-space: nowrap;
+}
+
+.user-header {
+    font-size: 0.9rem;
+    color: white;
+    display: flex;
+    align-items: center;
+}
+
+.header-data {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.pts-tag {
+    color: var(--gold);
+    font-weight: bold;
+    font-size: 0.8rem;
+}
+
+/* ───────────────────────────────────────────────────────────
+   MENU LATERAL
+   ─────────────────────────────────────────────────────────── */
+.side-menu {
+    position: fixed;
+    left: -320px;
+    top: 0;
+    width: 300px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--card-bg) 0%, #0a0a0a 100%);
+    z-index: 1000;
+    padding: 20px;
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.9);
+    border-right: 2px solid var(--gold);
+    overflow-y: auto;
+}
+
+.side-menu.active {
+    left: 0;
+}
+
+.close-btn {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    background: none;
+    border: none;
+    color: var(--gold);
+    font-size: 2rem;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn:hover {
+    transform: rotate(90deg);
+}
+
+/* PERFIL */
+.profile-section {
+    text-align: center;
+    padding: 30px 0 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+/* PERFIL - Atualizado para suportar foto real e clique */
+.profile-pic {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #222, #1a1a1a);
+    border-radius: 50%;
+    margin: 0 auto 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+    overflow: hidden; /* Garante que a foto fique circular */
+    cursor: pointer;  /* Mostra a mãozinha ao passar o mouse */
+    position: relative;
+}
+
+.profile-pic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Badge de câmera que aparece ao passar o mouse na sidebar */
+.profile-pic:hover::after {
+    content: '📷';
+    position: absolute;
+    background: rgba(0,0,0,0.5);
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+#user-name-display {
+    font-size: 1.2rem;
+    margin: 5px 0;
+    color: white;
+    font-weight: 600;
+}
+
+#user-points-display {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+/* AMIGOS */
+.friends-container {
+    margin: 25px 0;
+}
+
+.friends-container h3 {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 0 0 12px 0;
+}
+
+.scroll-area {
+    height: 200px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.scroll-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scroll-area::-webkit-scrollbar-thumb {
+    background: var(--gold);
+    border-radius: 10px;
+}
+
+.scroll-area::-webkit-scrollbar-thumb:hover {
+    background: var(--gold-bright);
+}
+
+#search-users {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid var(--border-color);
+    color: white;
+    border-radius: 8px;
+    outline: none;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+}
+
+#search-users:focus {
+    border-color: var(--gold);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+}
+
+#search-users::placeholder {
+    color: #666;
+}
+
+/* ───────────────────────────────────────────────────────────
+   AUTENTICAÇÃO
+   ─────────────────────────────────────────────────────────── */
+.auth-card {
+    width: 100%;
+    max-width: 450px;
+    margin: 60px auto;
+    background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+    border-radius: 20px;
+    padding: 45px;
+    border: 2px solid var(--border-color);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    text-align: center;
+}
+
+.auth-header {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--gold);
+}
+
+.auth-logo {
+    font-family: 'Cinzel', serif;
+    color: var(--gold);
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+}
+
+
+.auth-tabs {
+    display: flex;
+    background: #000;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 16px;
+    background: transparent;
+    border: none;
+    color: #666;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    transition: var(--transition);
+}
+
+.tab-btn.active {
+    background: rgba(212, 175, 55, 0.2);
+    color: var(--gold);
+    border-bottom: 3px solid var(--gold);
+}
+
+.tab-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    color: white;
+    font-size: 0.95rem;
+    font-family: 'Poppins', sans-serif;
+    outline: none;
+    transition: var(--transition);
+}
+
+.auth-form input:focus {
+    border-color: var(--gold);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+}
+
+.auth-form input::placeholder {
+    color: #888;
+}
+
+.btn-mission {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+    border: none;
+    border-radius: 12px;
+    color: #000;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 10px;
+    transition: var(--transition);
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+}
+
+.btn-mission:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5);
+    background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold) 100%);
+}
+
+.btn-mission:active:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.btn-mission:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ───────────────────────────────────────────────────────────
+   ÁREA DE LEITURA - CENÁRIO VISÍVEL
+   ─────────────────────────────────────────────────────────── */
+.reading-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 30px 20px;
+    min-height: calc(100vh - 100px);
+    
+    /* Removemos qualquer fundo sólido aqui */
+    background: transparent; 
+}
+
+#bible-text {
+    font-size: 1.2rem;       /* Aumentamos um pouco para facilitar a leitura */
+    color: #ffffff;          /* Branco puro para destacar do fundo */
+    line-height: 1.8;
+    font-weight: 500;        /* Deixa a letra levemente mais "gordinha" */
+    
+    /* O SEGREDO: Sombra pesada nas letras para que elas não sumam na imagem */
+    text-shadow: 
+        2px 2px 4px rgba(0, 0, 0, 0.9), 
+        -1px -1px 2px rgba(0, 0, 0, 0.8),
+        0px 0px 10px rgba(0, 0, 0, 1);
+}
+
+/* Ajuste opcional para os números dos versículos */
+#bible-text sup, .verse-number {
+    color: #d4af37;          /* Mantém o número em dourado */
+    font-weight: bold;
+    margin-right: 5px;
+    text-shadow: 1px 1px 2px #000;
+}
+
+/* BOTÕES DE NAVEGAÇÃO */
+.nav-controls {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin: 30px 0;
+    gap: 10px;
+}
+
+.nav-controls button {
+    flex: 1;
+    background: none;
+    border: 2px solid var(--border-color);
+    color: var(--text-light);
+    padding: 12px 20px;
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.nav-controls button:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+    transform: translateY(-2px);
+}
+
+/* BOTÃO FINALIZAR LEITURA */
+#btn-finalizar {
+    padding: 18px 40px !important;
+    border: 2px solid var(--border-color) !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    font-size: 1.05rem !important;
+    text-transform: uppercase !important;
+    transition: var(--transition) !important;
+}
+
+.btn-lock {
+    background: #333 !important;
+    color: #666 !important;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    border-color: #555 !important;
+}
+
+.btn-ready {
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%) !important;
+    color: black !important;
+    opacity: 1 !important;
+    cursor: pointer !important;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.5) !important;
+    border-color: var(--gold) !important;
+}
+
+.btn-ready:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: 0 8px 30px rgba(212, 175, 55, 0.6) !important;
+}
+
+.btn-completed {
+    background: var(--online-green) !important;
+    color: white !important;
+    cursor: default !important;
+    box-shadow: none !important;
+}
+
+/* ───────────────────────────────────────────────────────────
+   ANIMAÇÕES
+   ─────────────────────────────────────────────────────────── */
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes subirESumir {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -20%) scale(0.5);
+    }
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -60%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -100%) scale(0.8);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ponto-animado {
+    animation: subirESumir 3s forwards ease-out !important;
+}
+
+/* ───────────────────────────────────────────────────────────
+   SISTEMA SOCIAL E AMIGOS (CORREÇÕES)
+   ─────────────────────────────────────────────────────────── */
+
+/* Container de resultados da busca - Ajustado para sobreposição */
+#friends-list {
+    display: none; /* Controlado pelo JS */
+    position: absolute;
+    width: 100%;
+    max-height: 450px;
+    background: var(--card-bg);
+    border: 1px solid var(--gold);
+    border-radius: 8px;
+    overflow-y: auto;
+    z-index: 1000; /* Garante que fique acima da Bíblia/Ranking */
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    margin-top: 5px;
+    /* ADICIONE ISSO: Dá um respiro maior nas bordas da lista */
+    padding: 10px 0;
+}
+
+/* Item individual na lista de busca */
+.search-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+    transition: background 0.2s;
+}
+
+.search-item:hover {
+    background: rgba(212, 175, 55, 0.1);
+}
+
+.search-item span {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+/* Botão de adicionar na busca */
+.btn-add {
+    background: var(--gold);
+    color: #000;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.btn-add:hover {
+    background: var(--gold-bright);
+    transform: scale(1.05);
+}
+
+/* Sidebar de Amigos (Lista Fixa) */
+#lista-amigos-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 0;
+    min-height: 50px;
+}
+
+/* Item de amigo na sidebar */
+.amigo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.amigo-item:hover {
+    background: rgba(212, 175, 55, 0.05);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #555; /* Offline por padrão */
+}
+
+.status-dot.online {
+    background: var(--online-green);
+    box-shadow: 0 0 5px var(--online-green);
+}
+
+/* Badge para quando já é amigo na busca */
+.badge-amigo {
+    color: var(--gold);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Ajuste no campo de input para não sumir o texto */
+#search-users {
+    width: 100%;
+    background: #000;
+    border: 1px solid var(--border-color);
+    color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+#search-users:focus {
+    border-color: var(--gold);
+    outline: none;
+}
+
+/* Balãozinho de Notificação (Mensagem Recebida) */
+.balao-notificacao {
+    background: var(--gold);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 12px 12px 12px 2px; /* Formato de balão de fala */
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+    animation: balao-bounce 0.5s ease-out;
+}
+
+/* Ícone de "escrevendo" ou mensagem dentro do balão */
+.balao-notificacao::before {
+    content: '💬';
+    font-size: 0.8rem;
+}
+
+@keyframes balao-bounce {
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* ───────────────────────────────────────────────────────────
+/* ───────────────────────────────────────────────────────────
+   RESPONSIVIDADE AJUSTADA
+   ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .top-nav {
+        padding: 10px 15px;
+        flex-direction: column; /* Empilha o Título em cima e o resto embaixo */
+        align-items: center;
+        gap: 12px;
+        background: #000;
+    }
+
+    /* 1. "Heróis da Fé" centralizado no topo */
+    .logo-text {
+        display: block !important; /* Garante que o título apareça */
+        order: 1;
+        font-size: 1.2rem;
+        letter-spacing: 2px;
+        text-align: center;
+        width: 100%;
+        border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+        padding-bottom: 8px;
+    }
+
+    /* Container para a segunda linha (Menu, Botões e Nome) */
+    .nav-content-mobile {
+        display: flex;
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        order: 2;
+    }
+
+    /* 2. Menu no canto esquerdo */
+    .menu-icon {
+        order: 1;
+        margin: 0;
+        font-size: 1.6rem;
+        flex: 0 0 auto;
+    }
+
+    /* 3. Ranking e Bíblia no meio */
+    .nav-buttons {
+        display: flex !important;
+        order: 2;
+        gap: 6px;
+        justify-content: center;
+        flex: 1;
+    }
+
+    .nav-buttons button {
+        font-size: 0.65rem;
+        padding: 5px 8px;
+        white-space: nowrap;
+    }
+
+    /* 4. Nome e Pontos no canto direito */
+/* ═══════════════════════════════════════════════════════════
+   MEDIA QUERIES - RESPONSIVE MOBILE (CORRIGIDO)
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    /* CONTAINER PRINCIPAL */
+    .top-nav {
+        display: grid;
+        grid-template-columns: 50px 1fr 50px;
+        grid-template-rows: auto auto;
+        padding: 10px 15px;
+        background: #000;
+        gap: 8px;
+        align-items: center;
+    }
+
+    /* TÍTULO "HERÓIS DA FÉ" - Ocupa a linha toda */
+    .logo-text {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        display: block !important;
+        font-size: 1.2rem;
+        letter-spacing: 2px;
+        text-align: center;
+        width: 100%;
+        border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+    }
+
+    /* MENU (3 TRAÇOS) - CANTO ESQUERDO */
+    .menu-icon {
+        grid-column: 1;
+        grid-row: 2;
+        order: 1;
+        margin: 0;
+        font-size: 1.6rem;
+        flex: 0 0 auto;
+        justify-self: start;
+    }
+
+    /* BOTÕES (RANKING + BÍBLIA) - MEIO */
+    .nav-buttons {
+        grid-column: 2;
+        grid-row: 2;
+        display: flex !important;
+        order: 2;
+        gap: 6px;
+        justify-content: center;
+        flex: 1;
+    }
+
+    .nav-buttons button {
+        font-size: 0.65rem;
+        padding: 5px 8px;
+        white-space: nowrap;
+    }
+
+    /* USUÁRIO + PONTOS - CANTO DIREITO */
+    .user-header {
+        grid-column: 3;
+        grid-row: 2;
+        order: 3;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        justify-self: end;
+    }
+
+    .user-header img {
+        display: none; /* Esconder foto em mobile se quiser */
+    }
+
+    .header-data {
+        align-items: flex-end;
+    }
+
+    .header-data span {
+        font-size: 0.8rem;
+        line-height: 1.2;
+    }
+
+    .pts-tag {
+        font-size: 0.75rem;
+    }
+}
+
+/* ───────────────────────────────────────────────────────────
+   MOBILE PEQUENO (até 480px)
+   ─────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .top-nav {
+        padding: 8px 10px;
+        gap: 6px;
+    }
+
+    .logo-text {
+        font-size: 1rem;
+        letter-spacing: 1px;
+        padding-bottom: 6px;
+        margin-bottom: 6px;
+    }
+
+    .menu-icon {
+        font-size: 1.4rem;
+    }
+
+    .nav-buttons button {
+        font-size: 0.6rem;
+        padding: 4px 6px;
+    }
+
+    .user-header {
+        gap: 0px;
+    }
+
+    .user-header span {
+        font-size: 0.7rem;
+    }
+
+    .pts-tag {
+        font-size: 0.65rem;
+    }
+}
+
+/* ───────────────────────────────────────────────────────────
+   ACESSIBILIDADE
+   ─────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+/* Focus visível para navegação com teclado */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+}
+
+/* ───────────────────────────────────────────────────────────
+   SCROLLBAR CUSTOMIZADA
+   ─────────────────────────────────────────────────────────── */
+
+   
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--gold);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--gold-bright);
+}
+/* ESTILO PARA UPLOAD DE FOTO NO CADASTRO */
+.profile-upload-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.profile-upload-label {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px dashed var(--gold);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    background: rgba(212, 175, 55, 0.05);
+    transition: var(--transition);
+}
+
+.profile-upload-label:hover {
+    background: rgba(212, 175, 55, 0.15);
+    border-style: solid;
+}
+
+.profile-upload-label img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.upload-icon {
+    font-size: 2.5rem;
+    margin-bottom: 5px;
+}
+
+.profile-upload-label span {
+    font-size: 0.7rem;
+    color: var(--gold);
+    text-align: center;
+    padding: 0 10px;
+}
+
+/* Container do Troféu */
+.trofeu-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    overflow: visible !important; /* Garante que o brilho não escape */
+}
+
+.trofeu-icone {
+    font-size: 1.8rem;
+    z-index: 3;
+    position: relative;
+    /* Sombra no próprio emoji para destacar no PC */
+    filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+}
+
+.aura-flamejante {
+    position: absolute;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    z-index: 1;
+    /* No PC, animações 'alternate' com ease-in-out ficam mais fluidas */
+    animation: chamaDivina 1.2s infinite alternate ease-in-out;
+    mix-blend-mode: screen; /* Faz o brilho "somar" com o fundo, brilhando mais */
+}
+
+/* Cores das Auras - Aumentei o espalhamento (spread) para o PC */
+.aura-ouro { 
+    background: #ffcc00; 
+    box-shadow: 0 0 20px 10px #ffcc00, 0 0 40px 15px #ffaa00; 
+}
+.aura-prata { 
+    background: #e0e0e0; 
+    box-shadow: 0 0 20px 10px #e0e0e0, 0 0 40px 15px #ffffff; 
+}
+.aura-bronze { 
+    background: #cd7f32; 
+    box-shadow: 0 0 20px 10px #cd7f32, 0 0 40px 15px #8b4513; 
+}
+
+@keyframes chamaDivina {
+    0% { 
+        transform: scale(0.7); 
+        opacity: 0.5; 
+        filter: blur(4px) brightness(1);
+    }
+    100% { 
+        transform: scale(1.4); 
+        opacity: 1; 
+        filter: blur(8px) brightness(1.5); /* Aumenta o brilho no PC */
+    }
+}
+
+/* style.css */
+/* Esta classe controla o estado visual do Ranking */
+.modo-ranking-ativo {
+    background-color: #000 !important; /* Fundo base preto */
+    position: relative;
+}
+
+/* ───────────────────────────────────────────────────────────
+   SISTEMA DE AURAS E RANKING (FIX PC & MOBILE)
+   ─────────────────────────────────────────────────────────── */
+
+/* Container do Troféu */
+.trofeu-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    overflow: visible !important;
+}
+
+.trofeu-icone {
+    font-size: 1.8rem;
+    z-index: 3;
+    position: relative;
+    filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+}
+
+.aura-flamejante {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    z-index: 1;
+    animation: chamaDivina 1.2s infinite alternate ease-in-out;
+    mix-blend-mode: screen;
+}
+
+.aura-ouro { 
+    background: #ffcc00; 
+    box-shadow: 0 0 20px 10px #ffcc00, 0 0 40px 15px #ffaa00; 
+}
+.aura-prata { 
+    background: #e0e0e0; 
+    box-shadow: 0 0 20px 10px #e0e0e0, 0 0 40px 15px #ffffff; 
+}
+.aura-bronze { 
+    background: #cd7f32; 
+    box-shadow: 0 0 20px 10px #cd7f32, 0 0 40px 15px #8b4513; 
+}
+
+@keyframes chamaDivina {
+    0% { transform: scale(0.7); opacity: 0.5; filter: blur(4px); }
+    100% { transform: scale(1.4); opacity: 1; filter: blur(8px); }
+}
+
+/* ───────────────────────────────────────────────────────────
+   CONFIGURAÇÃO DO FUNDO (EXCLUSIVO RANKING)
+   ─────────────────────────────────────────────────────────── */
+
+.modo-ranking-ativo {
+    background-color: #000 !important;
+}
+
+/* Pseudo-elemento para a imagem de fundo */
+.modo-ranking-ativo::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("../imagens/ranking_bg.jpg") !important;
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    opacity: 0.4;
+    z-index: -1; /* No PC, -1 garante que fique atrás de tudo */
+    pointer-events: none;
+    display: block !important; /* Força a exibição no PC */
+}
+
+/* Garante que o conteúdo do ranking não fique invisível */
+#bible-text {
+    position: relative;
+    z-index: 10;
+}
+
+/* Efeito para os botões do Quiz */
+.opcao-quiz {
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(5px); /* Efeito de vidro fosco */
+    border: 1px solid rgba(212, 175, 55, 0.3) !important;
+    color: #fff !important;
+    padding: 15px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    font-size: 1.1rem;
+}
+
+.opcao-quiz:hover {
+    background: rgba(212, 175, 55, 0.2) !important;
+    border-color: #d4af37 !important;
+    transform: translateX(10px); /* Leve deslize ao passar o mouse */
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+}
+
+/* Container de Alerta (Centro da Tela) */
+.alerta-leitura {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+    padding: 30px 60px;
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    animation: popup 0.5s cubic-bezier(0.17, 0.89, 0.32, 1.27);
+}
+
+.alerta-sucesso { background: rgba(46, 204, 113, 0.3); color: #2ecc71; box-shadow: 0 0 50px rgba(46, 204, 113, 0.5); }
+.alerta-erro { background: rgba(231, 76, 60, 0.3); color: #e74c3c; box-shadow: 0 0 50px rgba(231, 76, 60, 0.5); }
+
+/* Estilo do Tique Verde Transparente Vidro */
+.capitulo-lido-glass {
+    background: rgba(46, 204, 113, 0.15) !important;
+    border: 2px solid rgba(46, 204, 113, 0.6) !important;
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.3), inset 0 0 10px rgba(255,255,255,0.2) !important;
+    color: #2ecc71 !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.capitulo-lido-glass::after {
+    content: "✨";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 0.8rem;
+}
+
+@keyframes popup {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* Efeito de brilho dourado para textos de destaque */
+.texto-ouro-faisca {
+    color: #fff;
+    text-shadow: 
+        0 0 10px var(--gold),
+        0 0 20px var(--gold-bright),
+        0 0 40px #ff8c00;
+    font-family: 'Cinzel', serif;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+/* Container do Pop-up (Reforço do que está no JS) */
+.vitoria-popup {
+    box-shadow: 0 0 50px rgba(212, 175, 55, 0.6);
+    border: 4px solid var(--gold) !important;
+    background: radial-gradient(circle, #1a1a1a 0%, #000 100%) !important;
+}
+
+/* Garante que o conteúdo da leitura não suma atrás do background */
+.leitura-container {
+    position: relative;
+    z-index: 5;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    border-radius: 15px;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+/* Botão de missão com estilo de ouro */
+.btn-mission {
+    background: linear-gradient(45deg, #b8941f, #d4af37);
+    color: #000 !important;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-mission:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px var(--gold-bright);
+}
+
+/* Efeito de sobreposição escura para erro */
+.overlay-erro {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); /* Escuro e opaco */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    animation: fadeIn 0.5s ease-in-out;
+    text-align: center;
+    backdrop-filter: blur(5px); /* Leve desfoque no fundo */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.texto-erro-epico {
+    color: #d4af37;
+    font-family: 'Cinzel', serif;
+    font-size: 2rem;
+    text-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+    margin-top: 20px;
+}
+
+/* RESET TOTAL PARA A JANELA DE CHAT - COLOQUE NO FIM DO STYLE.CSS */
+.chat-window {
+    /* 1. Desliga o sistema de grid/layout do site */
+    position: fixed !important; 
+    
+    /* 2. Posicionamento Exato (Canto Inferior Direito) */
+    bottom: 20px !important; 
+    right: 20px !important; 
+    left: auto !important; 
+    top: auto !important;
+
+    /* 3. Tamanho de "Janela" (Para não esticar no PC) */
+    width: 350px !important; 
+    height: 480px !important; 
+    max-width: 90vw !important;
+    max-height: 80vh !important;
+
+    /* 4. Visual Épico */
+    background: #121212 !important;
+    border: 2px solid #d4af37 !important;
+    border-radius: 15px !important;
+    z-index: 99999 !important; /* Na frente de TUDO */
+    
+    /* 5. Organização Interna */
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+}
+
+/* Garante que o corpo do chat ocupe o espaço correto */
+#chat-messages {
+    flex: 1 !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    background: #000 !important;
+    padding: 15px !important;
+}
+
+/* Ajuste específico para Celular */
+@media (max-width: 480px) {
+    .chat-window {
+        width: 100% !important;
+        height: 100% !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        border-radius: 0 !important;
+    }
+}
+
+}/* ═══════════════════════════════════════════════════════════
+   FIX DO CHAT - Cole isto no FIM do seu style.css ORIGINAL
+   ═══════════════════════════════════════════════════════════ */
+
+/* Remover qualquer definição anterior conflitante */
+.chat-window {
+    all: revert;
+}
+
+/* Nova definição CORRETA do chat */
+.chat-window {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    left: auto !important;
+    top: auto !important;
+    width: 500px !important;
+    height: 600px !important;
+    background: #121212 !important;
+    border: 2px solid #d4af37 !important;
+    border-radius: 15px !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#chat-messages {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    background: #000 !important;
+    padding: 15px !important;
+}
+
+/* TABLET */
+@media (min-width: 481px) and (max-width: 1024px) {
+    .chat-window {
+        width: 400px !important;
+        height: 520px !important;
+    }
+}
+
+/* MOBILE */
+@media (max-width: 480px) {
+    .chat-window {
+        position: fixed !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        border-radius: 0 !important;
+    }
+
+
+    .nivel-chamas-ouro {
+    /* Texto Preto Profundo */
+    color: #000000; 
+    font-family: 'Cinzel', serif; /* Mantendo o padrão do seu projeto */
+    font-weight: 900;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 10px;
+    display: inline-block;
+    
+    /* Efeito de Brilho em Movimento (Fundo) */
+    background: linear-gradient(
+        45deg, 
+        #d4af37, /* Ouro padrão do seu projeto */
+        #f9f295, /* Ouro brilhante */
+        #ffdf00, /* Ouro vivo */
+        #d4af37
+    );
+    background-size: 400% 400%;
+    
+    /* Faz o fundo brilhar em volta, mas mantém o nome preto */
+    border: 2px solid #d4af37;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 0 10px rgba(212, 175, 55, 0.4);
+    
+    /* Animação das Chamas */
+    animation: chamasOuro 3s ease infinite;
+}
+
+@keyframes chamasOuro {
+    0% {
+        background-position: 0% 50%;
+        box-shadow: 0 0 10px #d4af37;
+    }
+    50% {
+        background-position: 100% 50%;
+        box-shadow: 0 0 25px #ffdf00, 0 0 40px rgba(255, 223, 0, 0.4);
+    }
+    100% {
+        background-position: 0% 50%;
+        box-shadow: 0 0 10px #d4af37;
+    }
+}
+
+/* --- CHAT TEMA HEBRAICO & RESPONSIVO --- */
+.chat-window {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 380px;
+    height: 600px;
+    max-height: 80vh;
+    background: #1a120b; /* Marrom Couro Escuro */
+    border: 2px solid #d4af37;
+    border-radius: 12px;
+    z-index: 10001; /* Acima de tudo */
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    overflow: hidden;
+    font-family: 'Poppins', sans-serif;
+    transition: all 0.3s ease;
+}
+
+/* AJUSTE TOTAL PARA CELULAR (TELA CHEIA) */
+@media (max-width: 480px) {
+    .chat-window {
+        bottom: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        height: 100dvh !important; /* Altura dinâmica para mobile */
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        border: none !important;
+    }
+}
+
+/* Bolhas de Mensagem Estilo Pergaminho/Ouro */
+.msg-me {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #d4af37, #b8941f);
+    color: #000;
+    font-weight: 500;
+    border-radius: 12px 12px 0 12px;
+}
+
+.msg-friend {
+    align-self: flex-start;
+    background: #2d241c; /* Couro mais claro */
+    color: #f1e7d0;
+    border: 1px solid #4a3b2b;
+    border-radius: 12px 12px 12px 0;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+.online { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+.offline { background: #7f8c8d; }
+
+/* Garante que o perfil detalhado fique NA FRENTE do menu lateral */
+#perfil-detalhado {
+    z-index: 10002 !important; /* Valor maior que o do menu lateral */
+}
+
+/* Garante que a janela de chat também fique NA FRENTE */
+.chat-window {
+    z-index: 10003 !important; 
+}
+
+/* Se o seu menu lateral tiver um z-index muito alto, verifique-o: */
+.side-menu {
+    z-index: 10000; /* Deixe o menu em um nível alto, mas menor que os modais */
+}
+
+
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CORREÇÕES FINAIS — TOP NAV RESPONSIVO + Z-INDEX
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── TOP NAV: UMA LINHA SÓ, TUDO CABE ── */
+.top-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 6px 10px !important;
+    gap: 6px !important;
+    min-height: 48px !important;
+}
+
+/* Botão MENU — pequeno, colado na esquerda */
+.menu-icon {
+    flex: 0 0 auto !important;
+    font-size: 0.75rem !important;
+    padding: 5px 10px !important;
+    height: 32px !important;
+    white-space: nowrap !important;
+    border-radius: 5px !important;
+}
+
+/* Botões RANKING e BÍBLIA — mesma altura do MENU */
+.nav-buttons {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    gap: 5px !important;
+}
+.nav-buttons button {
+    font-size: 0.68rem !important;
+    padding: 5px 8px !important;
+    height: 32px !important;
+    white-space: nowrap !important;
+    border-width: 1px !important;
+}
+
+/* Foto + Pontos no canto direito — foto em cima, pts embaixo */
+#user-header-info {
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+}
+#user-header-info > div {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0 !important;
+}
+#user-header-info img {
+    width: 28px !important;
+    height: 28px !important;
+}
+#user-header-info .header-data {
+    align-items: center !important;
+    gap: 0 !important;
+    line-height: 1.1 !important;
+}
+#user-header-info .header-data span {
+    font-size: 0.65rem !important;
+    white-space: nowrap !important;
+}
+#user-header-info .pts-tag {
+    font-size: 0.65rem !important;
+    white-space: nowrap !important;
+}
+
+/* Esconder título no mobile */
+@media (max-width: 768px) {
+    .logo-text { display: none !important; }
+}
+
+/* ── Z-INDEX HIERARQUIA DEFINITIVA ── */
+.top-nav                 { z-index: 900  !important; }
+.side-menu               { z-index: 1000 !important; }
+
+/* Tudo que abre por cima do menu */
+#perfil-detalhado,
+#crop-overlay,
+.chat-window,
+.alerta-leitura,
+.vitoria-popup,
+.overlay-erro            { z-index: 99999 !important; }
+/* ═══════════════════════════════════════════════════════════
+   CORREÇÃO MOBILE — FOTO + PONTOS NO CANTO DIREITO
+   ═══════════════════════════════════════════════════════════ */
+#user-header-info {
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+}
+#user-header-info > div {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    display: flex !important;
+}
+
+/* Header só aparece via JS após login — proteção contra !important do CSS global */
+.top-nav[style*="display: none"] {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LEITURA DE CAPÍTULO — SELETOR EXATO DO game.js
+   ═══════════════════════════════════════════════════════════ */
+
+/* Container do texto bíblico — fundo transparente */
+#texto-leitura,
+.texto-biblico {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Sombra pesada nas letras para legibilidade sobre imagem */
+.texto-biblico,
+.texto-biblico * {
+    text-shadow:
+        0 0 10px rgba(0,0,0,0.95),
+        2px 2px 5px rgba(0,0,0,1),
+        -2px -2px 5px rgba(0,0,0,1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CAPÍTULO BÍBLICO — REMOVE FUNDO DO CONTAINER DE VERSÍCULOS
+   Afeta SOMENTE o div direto que envolve o texto do capítulo,
+   sem tocar no ranking, grid de livros ou outros componentes.
+   ═══════════════════════════════════════════════════════════ */
+
+/* O blockquote padrão do browser que aparece com borda esquerda dourada */
+#bible-text blockquote {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Div de conteúdo do capítulo gerado pelo game.js —
+   identificado por ter border-left dourada e padding interno */
+#bible-text > div[style*="border-left"],
+#bible-text > div[style*="border-radius"][style*="padding"] {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Exceção: cards do mural da fé não devem ser transparentes */
+#bible-text > div > div[id^="post-"],
+#feed-mural > div {
+    background: rgba(20,20,18,0.95) !important;
+    background-color: rgba(20,20,18,0.95) !important;
+}

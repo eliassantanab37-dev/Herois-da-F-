@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Heróis da Fé - Plataforma gamificada de leitura da Bíblia">
+    <meta name="theme-color" content="#d4af37">
+    <title>Heróis da Fé - Jornada Espiritual Gamificada</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Heróis da Fé">
+    <link rel="apple-touch-icon" href="/imagens/icon-192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/imagens/icon-152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/imagens/icon-192.png">
+    <meta name="msapplication-TileColor" content="#0a0a0a">
+    <meta name="msapplication-TileImage" content="/imagens/icon-144.png">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- Open Graph — atualizado para o novo domínio -->
+    <meta property="og:title" content="Heróis da Fé">
+    <meta property="og:description" content="Leia a Bíblia, ganhe pontos e suba no ranking!">
+    <meta property="og:image" content="https://www.heroisdafe.app.br/imagens/icon-512.png">
+    <meta property="og:url" content="https://www.heroisdafe.app.br/">
+    <meta property="og:type" content="website">
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/imagens/icon-96.png">
+    <link rel="shortcut icon" href="/imagens/icon-96.png">
+
+    <!-- Fontes -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Confetti (global, antes dos módulos) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        /* Z-INDEX DEFINITIVO */
+        .top-nav                 { z-index: 900  !important; }
+        .side-menu               { z-index: 1000 !important; }
+        #perfil-detalhado,
+        #crop-overlay,
+        .alerta-leitura,
+        .vitoria-popup,
+        .overlay-erro,
+        .chat-window             { z-index: 9999 !important; }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════════ MENU LATERAL ═══════════════════ -->
+    <aside id="side-menu" class="side-menu" role="navigation" aria-label="Menu lateral" style="display: none;">
+        <button id="close-menu" class="close-btn" aria-label="Fechar menu">×</button>
+
+        <!-- PERFIL -->
+        <section class="profile-section" aria-label="Perfil do usuário">
+            <div class="profile-pic" id="user-profile-pic" style="cursor: pointer; position: relative;">👤</div>
+            <h2 id="user-name-display" style="margin: 10px 0 3px 0;">Carregando...</h2>
+            <p id="user-points-display" style="margin: 0 0 8px 0; color: #d4af37; font-weight: bold;">0 pts</p>
+
+            <!-- BARRA DE EXP -->
+            <div style="width:100%; max-width:160px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="color:#888; font-size:0.65rem; text-transform:uppercase; letter-spacing:1px;">
+                        Nível <strong id="nivel-numero" style="color:#d4af37;">1</strong>
+                    </span>
+                    <span id="exp-texto" style="color:#d4af37; font-size:0.65rem; font-weight:bold;">0%</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.08); border-radius:6px; height:7px; overflow:hidden; border:1px solid #333;">
+                    <div id="exp-bar-fill" style="height:100%; width:0%;
+                        background:linear-gradient(90deg,#d4af37,#ffdf00); border-radius:6px;
+                        transition:width 0.6s ease; box-shadow:0 0 6px rgba(212,175,55,0.5);">
+                    </div>
+                </div>
+                <div style="color:#555; font-size:0.6rem; text-align:center; margin-top:3px;">
+                    EXP para próximo nível
+                </div>
+            </div>
+        </section>
+
+        <!-- MENU -->
+        <nav style="margin: 25px 0;">
+            <h3 style="font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 12px 0;">Menu</h3>
+            <button id="btn-estatisticas" class="menu-btn-custom">📊 Estatísticas</button>
+            <button id="btn-desafios"    class="menu-btn-custom">🎯 Desafios</button>
+            <button id="btn-badges"      class="menu-btn-custom">🏆 Troféus</button>
+        </nav>
+
+        <hr style="border: 0; border-top: 1px solid #222; margin: 15px 0;">
+
+        <!-- BUSCA DE HERÓIS -->
+        <section style="margin-bottom: 12px;">
+            <h3 style="font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 10px 0;">🔍 Buscar Herói</h3>
+            <div style="position: relative;">
+                <input
+                    type="text"
+                    id="sidebar-search-input"
+                    placeholder="Nome do herói..."
+                    autocomplete="off"
+                    style="
+                        width: 100%; box-sizing: border-box;
+                        padding: 9px 14px 9px 36px;
+                        background: #1a1a1a; border: 1px solid #333;
+                        border-radius: 20px; color: #f1e7d0;
+                        font-size: 0.82rem; outline: none;
+                        transition: border 0.2s;
+                    "
+                    onfocus="this.style.borderColor='#d4af37'"
+                    onblur="this.style.borderColor='#333'"
+                >
+                <span style="position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:0.85rem; pointer-events:none;">🔍</span>
+            </div>
+            <div id="sidebar-search-results"></div>
+        </section>
+
+        <hr style="border: 0; border-top: 1px solid #222; margin: 15px 0;">
+
+        <!-- LISTA DE HERÓIS -->
+        <section class="friends-container">
+            <h3 style="font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 10px 0;">Heróis</h3>
+            <div id="lista-amigos-sidebar" class="scroll-area">
+                <p style="color: #444; font-size: 0.7rem; text-align: center; margin-top: 20px;">Procurando heróis...</p>
+            </div>
+        </section>
+
+        <button id="btn-sair-menu" style="margin-top: 30px; width: 100%; color: gray; background: none; border: none; cursor: pointer; padding: 10px;">
+            Sair da Conta
+        </button>
+    </aside>
+
+    <!-- ═══════════════════ HEADER / NAV ═══════════════════ -->
+    <header class="top-nav" style="display: none;">
+        <button id="open-menu" class="menu-icon">MENU</button>
+        <nav class="nav-buttons" style="flex: 1; display: flex; justify-content: center;">
+            <button id="nav-ranking">🏆 RANKING</button>
+            <button id="nav-biblia">📖 BÍBLIA</button>
+        </nav>
+        <div id="user-header-info" style="margin-left: auto; margin-right: 15px;"></div>
+        <div class="logo-text">HERÓIS DA FÉ</div>
+    </header>
+
+    <!-- ═══════════════════ CONTEÚDO PRINCIPAL ═══════════════════ -->
+    <main id="main-content">
+
+        <!-- AUTH -->
+        <section id="auth-container" class="auth-card">
+            <div class="auth-header" style="margin-bottom: 30px; text-align: center;">
+                <span class="auth-logo" style="font-family: 'Cinzel', serif; color: #d4af37; font-size: 1.5rem; font-weight: bold;">⚜️ HERÓIS DA FÉ</span>
+            </div>
+            <div class="auth-tabs">
+                <button id="tab-entrar"    class="tab-btn active">ENTRAR</button>
+                <button id="tab-cadastrar" class="tab-btn">CADASTRAR</button>
+            </div>
+            <form id="form-entrar" class="auth-form">
+                <input type="email"    id="login-email" placeholder="Seu E-mail" required>
+                <input type="password" id="login-senha" placeholder="Sua Senha"  required>
+                <button type="button"  id="btn-entrar"  class="btn-mission">ENTRAR NA MISSÃO</button>
+            </form>
+            <form id="form-cadastrar" class="auth-form" style="display: none;">
+                <input type="text"     id="reg-nome"  placeholder="Nome de Herói" required>
+                <input type="email"    id="reg-email" placeholder="E-mail"        required>
+                <input type="password" id="reg-senha" placeholder="Senha (mín. 6 dígitos)" required>
+                <button type="button"  id="btn-registrar" class="btn-mission">CRIAR HERÓI</button>
+            </form>
+        </section>
+
+        <!-- LEITURA -->
+        <section id="reading-view" class="reading-container" style="display: none;">
+            <div id="bible-text"></div>
+        </section>
+
+        <!-- RANKING (container oculto, conteúdo vai em bible-text) -->
+        <section id="ranking-container" style="display: none;"></section>
+
+    </main>
+
+    <!-- ═══════════════════ INPUT DE FOTO (global) ═══════════════════ -->
+    <input type="file" id="foto-input" accept="image/*" style="display: none;" data-update-mode="false">
+
+    <!-- ═══════════════════ MÓDULOS JS ═══════════════════ -->
+    <script type="module" src="js/config.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/bible.js"></script>
+    <script type="module" src="js/game.js"></script>
+    <script type="module" src="js/ui.js"></script>
+    <script type="module" src="js/chat.js"></script>
+    <script type="module" src="js/social.js"></script>
+    <script type="module" src="js/badges.js"></script>
+    <script type="module" src="js/stats.js"></script>
+    <script type="module" src="js/challenges.js"></script>
+
+    <!-- ═══════════════════ MÓDULO PRINCIPAL ═══════════════════ -->
+    <script type="module">
+        import { supabase }                from './js/config.js';
+        import { atualizarBarraExpMenu }   from './js/badges.js';
+        import { iniciarListenerUsuario }  from './js/auth.js';
+        import { iniciarSocial }           from './js/social.js';
+        import { iniciarMonitorChat }      from './js/chat.js';
+
+        const header        = document.querySelector('.top-nav');
+        const sidebar       = document.getElementById('side-menu');
+        const authContainer = document.getElementById('auth-container');
+
+        // ── Único listener de sessão — evita race condition ──
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            const user = session?.user ?? null;
+
+            if (user) {
+                // Mostra UI logado
+                if (header)        header.style.display        = 'flex';
+                if (sidebar)       sidebar.style.display       = 'block';
+                if (authContainer) authContainer.style.display = 'none';
+
+                // Inicia listeners em paralelo
+                iniciarListenerUsuario(user);
+                iniciarSocial(user);
+                iniciarMonitorChat(user);
+
+                // Atualiza barra de EXP
+                try {
+                    const { data: progData } = await supabase
+                        .from('progresso')
+                        .select('concluido')
+                        .eq('uid', user.id)
+                        .eq('concluido', true);
+
+                    const totalCaps = progData?.length || 0;
+                    atualizarBarraExpMenu(totalCaps);
+                } catch (e) {
+                    console.error('[index] Erro ao carregar EXP:', e);
+                }
+            } else {
+                // Deslogado — limpa tudo
+                if (header)        header.style.display        = 'none';
+                if (sidebar)       sidebar.style.display       = 'none';
+                if (authContainer) authContainer.style.display = 'block';
+
+                const readingView = document.getElementById('reading-view');
+                if (readingView) readingView.style.display = 'none';
+            }
+        });
+
+        // ── Wiring dos botões do menu ──────────────────────────
+        function esperarFuncao(nome, tentativas = 40) {
+            return new Promise((resolve) => {
+                const checar = (n) => {
+                    if (typeof window[nome] === 'function') return resolve(window[nome]);
+                    if (n <= 0) { console.warn(`[index] Função ${nome} não encontrada`); return resolve(null); }
+                    setTimeout(() => checar(n - 1), 100);
+                };
+                checar(tentativas);
+            });
+        }
+
+        esperarFuncao('mostrarBadges').then(fn => {
+            const btn = document.getElementById('btn-badges');
+            if (btn && fn) btn.addEventListener('click', fn);
+        });
+
+        esperarFuncao('mostrarEstatisticas').then(fn => {
+            const btn = document.getElementById('btn-estatisticas');
+            if (btn && fn) btn.addEventListener('click', fn);
+        });
+
+        esperarFuncao('mostrarDesafios').then(fn => {
+            const btn = document.getElementById('btn-desafios');
+            if (btn && fn) btn.addEventListener('click', fn);
+        });
+
+        // ── voltarParaBiblia ───────────────────────────────────
+        window.voltarParaBiblia = function () {
+            document.body.style.backgroundImage = '';
+            document.body.style.backgroundSize  = '';
+            document.body.style.backgroundAttachment = '';
+            document.body.classList.remove('modo-ranking-ativo');
+            if (window.carregarListaLivros) window.carregarListaLivros();
+        };
+
+        // ── Deep-link via query string ─────────────────────────
+        const params = new URLSearchParams(window.location.search);
+        const acao   = params.get('acao');
+        if (acao) {
+            const verificar = setInterval(() => {
+                const logado = document.getElementById('reading-view')?.style.display === 'block';
+                if (!logado) return;
+                clearInterval(verificar);
+                if (acao === 'biblia'  && window.carregarListaLivros) window.carregarListaLivros();
+                if (acao === 'ranking') document.getElementById('nav-ranking')?.click();
+                window.history.replaceState({}, '', '/');
+            }, 500);
+        }
+    </script>
+
+    <!-- ═══════════════════ PWA ═══════════════════ -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((reg) => {
+                        console.log('[PWA] SW registrado:', reg.scope);
+                        reg.addEventListener('updatefound', () => {
+                            const novoSW = reg.installing;
+                            novoSW.addEventListener('statechange', () => {
+                                if (novoSW.state === 'installed' && navigator.serviceWorker.controller) {
+                                    mostrarBannerAtualizacao(novoSW);
+                                }
+                            });
+                        });
+                    })
+                    .catch((err) => console.warn('[PWA] Erro ao registrar SW:', err));
+
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                });
+            });
+        }
+
+        function mostrarBannerAtualizacao(sw) {
+            const banner = document.createElement('div');
+            banner.style.cssText = `
+                position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                background: #d4af37; color: #000; padding: 14px 24px;
+                border-radius: 30px; font-weight: bold; font-family: 'Poppins', sans-serif;
+                font-size: 0.88rem; box-shadow: 0 4px 20px rgba(212,175,55,0.5);
+                z-index: 99999; display: flex; align-items: center; gap: 12px;
+                cursor: pointer; white-space: nowrap;
+            `;
+            banner.innerHTML = `🔄 Nova versão disponível! <span style="text-decoration:underline;">Atualizar agora</span>`;
+            banner.onclick = () => { sw.postMessage('SKIP_WAITING'); banner.remove(); };
+            document.body.appendChild(banner);
+            setTimeout(() => banner.remove(), 15000);
+        }
+
+        let promptInstalacao = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            promptInstalacao = e;
+            setTimeout(() => {
+                if (!promptInstalacao) return;
+                const btn = document.createElement('div');
+                btn.style.cssText = `
+                    position: fixed; bottom: 20px; right: 20px;
+                    background: linear-gradient(135deg, #d4af37, #ffdf00);
+                    color: #000; padding: 12px 18px; border-radius: 30px;
+                    font-weight: bold; font-family: 'Poppins', sans-serif;
+                    font-size: 0.82rem; box-shadow: 0 4px 20px rgba(212,175,55,0.4);
+                    z-index: 99998; cursor: pointer; display: flex; align-items: center; gap: 8px;
+                `;
+                btn.innerHTML = `📲 Instalar App`;
+                btn.onclick = () => {
+                    promptInstalacao.prompt();
+                    promptInstalacao.userChoice.then(() => { promptInstalacao = null; btn.remove(); });
+                };
+                document.body.appendChild(btn);
+                setTimeout(() => btn.remove(), 20000);
+            }, 30000);
+        });
+
+        window.addEventListener('appinstalled', () => {
+            promptInstalacao = null;
+            console.log('[PWA] App instalado com sucesso!');
+        });
+    </script>
+
+</body>
+</html>
