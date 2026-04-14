@@ -47,7 +47,123 @@
         .alerta-leitura,
         .vitoria-popup,
         .overlay-erro,
+
         .chat-window             { z-index: 9999 !important; }
+
+        .auth-field-tip {
+            display: block;
+            margin: -8px 0 10px 4px;
+            color: #b8ab7a;
+            font-size: 0.74rem;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .auth-action-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+            width: 100%;
+        }
+
+        .auth-special-btn {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 14px;
+            padding: 12px 14px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 0.86rem;
+            cursor: pointer;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .auth-special-btn:hover,
+        .compact-mission-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .gold-shine {
+            color: #1d1400;
+            background: linear-gradient(135deg, #b8860b 0%, #d4af37 35%, #ffe48a 50%, #d4af37 65%, #b8860b 100%);
+            box-shadow: 0 8px 24px rgba(212,175,55,0.32), inset 0 1px 0 rgba(255,255,255,0.35);
+        }
+
+        .gold-shine::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -65%;
+            width: 42%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.78), transparent);
+            transform: skewX(-22deg);
+            animation: shineToRight 2.4s linear infinite;
+            pointer-events: none;
+        }
+
+        .emerald-glass {
+            color: #eafff5;
+            background: linear-gradient(135deg, rgba(8,140,97,0.86), rgba(25,191,127,0.72));
+            box-shadow: 0 8px 24px rgba(0, 160, 110, 0.28), inset 0 1px 0 rgba(255,255,255,0.25);
+        }
+
+        .emerald-glass::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(120deg, rgba(255,255,255,0.18), transparent 42%, rgba(255,255,255,0.08) 72%, transparent);
+            pointer-events: none;
+        }
+
+        .gray-glass {
+            color: #ffffff;
+            background: linear-gradient(135deg, rgba(110,110,118,0.30), rgba(165,165,175,0.18));
+            border: 1px solid rgba(255,255,255,0.22);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255,255,255,0.20);
+        }
+
+        .gray-glass::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(120deg, rgba(255,255,255,0.22), transparent 38%, rgba(255,255,255,0.10) 68%, transparent);
+            pointer-events: none;
+        }
+
+        .auth-action-row.secondary {
+            margin-top: 12px;
+        }
+
+        .compact-mission-btn {
+            width: fit-content;
+            min-width: 210px;
+            max-width: 100%;
+            align-self: center;
+            padding: 12px 22px;
+            margin: 14px auto 0;
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes shineToRight {
+            0% { left: -65%; }
+            100% { left: 135%; }
+        }
+
+        @media (max-width: 640px) {
+            .auth-action-row {
+                flex-direction: column;
+            }
+
+            .compact-mission-btn {
+                min-width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -158,13 +274,35 @@
             <form id="form-entrar" class="auth-form">
                 <input type="email"    id="login-email" placeholder="Seu E-mail" required>
                 <input type="password" id="login-senha" placeholder="Sua Senha"  required>
-                <button type="button"  id="btn-entrar"  class="btn-mission">ENTRAR NA MISSÃO</button>
+                <button type="button"  id="btn-entrar"  class="btn-mission">ENTRAR NO JOGO</button>
+
+                <div class="auth-action-row secondary">
+                    <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">
+                        Recuperar Senha
+                    </button>
+                </div>
+
+                <div class="auth-action-row">
+                    <button type="button" id="btn-instalar-app-login" class="auth-special-btn gold-shine" style="display:none;">
+                        📲 Download do App
+                    </button>
+                    <button type="button" id="btn-compartilhar-app" class="auth-special-btn emerald-glass">
+                        ✨ Compartilhar App
+                    </button>
+                </div>
             </form>
             <form id="form-cadastrar" class="auth-form" style="display: none;">
-                <input type="text"     id="reg-nome"  placeholder="Nome de Herói" required>
-                <input type="email"    id="reg-email" placeholder="E-mail"        required>
-                <input type="password" id="reg-senha" placeholder="Senha (mín. 6 dígitos)" required>
-                <button type="button"  id="btn-registrar" class="btn-mission">CRIAR HERÓI</button>
+                <input type="text"     id="reg-nome"  placeholder="Nome" required maxlength="12">
+                <small class="auth-field-tip">Máximo de 12 caracteres</small>
+
+                <input type="email"    id="reg-email" placeholder="E-mail" required>
+
+                <input type="password" id="reg-senha" placeholder="Senha" required minlength="8">
+                <small class="auth-field-tip">Mínimo de 8 dígitos</small>
+
+                <input type="text" id="reg-data-nascimento" placeholder="dd/mm/aaaa" required inputmode="numeric" maxlength="10" autocomplete="bday">
+
+                <button type="button" id="btn-registrar" class="btn-mission gold-shine compact-mission-btn">INICIAR JORNADA</button>
             </form>
         </section>
 
@@ -336,33 +474,68 @@
         }
 
         let promptInstalacao = null;
+
+        function atualizarBotaoInstalacao() {
+            const btnInstalar = document.getElementById('btn-instalar-app-login');
+            if (!btnInstalar) return;
+            btnInstalar.style.display = promptInstalacao ? 'inline-flex' : 'none';
+        }
+
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             promptInstalacao = e;
-            setTimeout(() => {
-                if (!promptInstalacao) return;
-                const btn = document.createElement('div');
-                btn.style.cssText = `
-                    position: fixed; bottom: 20px; right: 20px;
-                    background: linear-gradient(135deg, #d4af37, #ffdf00);
-                    color: #000; padding: 12px 18px; border-radius: 30px;
-                    font-weight: bold; font-family: 'Poppins', sans-serif;
-                    font-size: 0.82rem; box-shadow: 0 4px 20px rgba(212,175,55,0.4);
-                    z-index: 99998; cursor: pointer; display: flex; align-items: center; gap: 8px;
-                `;
-                btn.innerHTML = `📲 Instalar App`;
-                btn.onclick = () => {
-                    promptInstalacao.prompt();
-                    promptInstalacao.userChoice.then(() => { promptInstalacao = null; btn.remove(); });
+            atualizarBotaoInstalacao();
+        });
+
+        document.addEventListener('click', async (event) => {
+            const btnInstalar = event.target.closest('#btn-instalar-app-login');
+            if (btnInstalar && promptInstalacao) {
+                promptInstalacao.prompt();
+                await promptInstalacao.userChoice;
+                promptInstalacao = null;
+                atualizarBotaoInstalacao();
+            }
+
+            const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
+            if (btnCompartilhar) {
+                const shareData = {
+                    title: 'Heróis da Fé',
+                    text: 'Baixe e compartilhe o app Heróis da Fé.',
+                    url: window.location.origin
                 };
-                document.body.appendChild(btn);
-                setTimeout(() => btn.remove(), 20000);
-            }, 30000);
+
+                try {
+                    if (navigator.share) {
+                        await navigator.share(shareData);
+                    } else {
+                        const texto = encodeURIComponent(`${shareData.text} ${shareData.url}`);
+                        window.open(`https://wa.me/?text=${texto}`, '_blank');
+                    }
+                } catch (err) {
+                    console.warn('[PWA] Compartilhamento cancelado ou indisponível:', err);
+                }
+            }
         });
 
         window.addEventListener('appinstalled', () => {
             promptInstalacao = null;
+            atualizarBotaoInstalacao();
             console.log('[PWA] App instalado com sucesso!');
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const campoData = document.getElementById('reg-data-nascimento');
+            if (campoData) {
+                campoData.addEventListener('input', (e) => {
+                    let valor = e.target.value.replace(/\D/g, '').slice(0, 8);
+                    if (valor.length > 4) {
+                        valor = `${valor.slice(0,2)}/${valor.slice(2,4)}/${valor.slice(4)}`;
+                    } else if (valor.length > 2) {
+                        valor = `${valor.slice(0,2)}/${valor.slice(2)}`;
+                    }
+                    e.target.value = valor;
+                });
+            }
         });
     </script>
 
