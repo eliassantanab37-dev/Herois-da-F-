@@ -1,7 +1,7 @@
 // js/auth.js
 // ═══════════════════════════════════════════════════════════
 // AUTENTICAÇÃO — LOGIN, REGISTRO, RECUPERAR SENHA, LISTENER
-// Compatível com o index atual
+// Compatível com o index atual + reset de senha
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './config.js';
@@ -182,6 +182,7 @@ function traduzirErro(msg) {
     if (msg.includes('Password should be')) return 'Senha fraca. Use pelo menos 8 caracteres.';
     if (msg.includes('Unable to validate')) return 'E-mail inválido.';
     if (msg.includes('Network')) return 'Sem conexão com a internet.';
+    if (msg.includes('Email rate limit exceeded')) return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
     return null;
 }
 
@@ -303,6 +304,8 @@ if (btnEntrar) {
             });
 
             if (error) throw error;
+
+            sessionStorage.setItem('herois_login_liberado', 'true');
         } catch (_) {
             mostrarErro('E-mail ou senha incorretos');
         } finally {
@@ -325,13 +328,15 @@ if (btnRecuperar) {
         btnRecuperar.innerText = 'ENVIANDO...';
 
         try {
+            const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: window.location.origin
+                redirectTo: redirectUrl
             });
 
             if (error) throw error;
 
-            mostrarSucesso('E-mail de recuperação enviado com sucesso!');
+            mostrarSucesso('E-mail de recuperação enviado com sucesso! Abra o link do e-mail para criar uma nova senha.');
         } catch (erro) {
             mostrarErro(traduzirErro(erro.message) || erro.message);
         } finally {
@@ -349,6 +354,8 @@ if (btnSair) {
                 supabase.removeChannel(_realtimeChannel);
                 _realtimeChannel = null;
             }
+
+            sessionStorage.removeItem('herois_login_liberado');
             await supabase.auth.signOut();
         }
     });
@@ -357,8 +364,12 @@ if (btnSair) {
 // ── ABAS ───────────────────────────────────────────────────
 if (tabEntrar) {
     tabEntrar.addEventListener('click', () => {
+        const resetBox = document.getElementById('reset-password-box');
+        if (resetBox) resetBox.style.display = 'none';
+
         if (formEntrar) formEntrar.style.display = 'block';
         if (formCadastrar) formCadastrar.style.display = 'none';
+
         tabEntrar.classList.add('active');
         if (tabCadastrar) tabCadastrar.classList.remove('active');
     });
@@ -366,8 +377,12 @@ if (tabEntrar) {
 
 if (tabCadastrar) {
     tabCadastrar.addEventListener('click', () => {
+        const resetBox = document.getElementById('reset-password-box');
+        if (resetBox) resetBox.style.display = 'none';
+
         if (formCadastrar) formCadastrar.style.display = 'block';
         if (formEntrar) formEntrar.style.display = 'none';
+
         tabCadastrar.classList.add('active');
         if (tabEntrar) tabEntrar.classList.remove('active');
     });
