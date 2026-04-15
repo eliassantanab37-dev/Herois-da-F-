@@ -1,15 +1,17 @@
-// sw.js — Service Worker do Heróis da Fé (Supabase)
-// ═══════════════════════════════════════════════════════════
+// sw.js — Service Worker do Heróis da Fé (Supabase) — versão corrigida
 
-const CACHE_NAME    = 'herois-da-fe-v4';
-const CACHE_ESTATICO = 'herois-estatico-v4';
+const CACHE_NAME = 'herois-da-fe-v5';
+const CACHE_ESTATICO = 'herois-estatico-v5';
 
 const SHELL = [
     '/',
     '/index.html',
+    '/404.html',
+    '/manifest.json',
     '/css/style.css',
     '/js/config.js',
     '/js/auth.js',
+    '/js/reset-password.js',
     '/js/bible.js',
     '/js/game.js',
     '/js/ui.js',
@@ -17,23 +19,37 @@ const SHELL = [
     '/js/chat.js',
     '/js/badges.js',
     '/js/stats.js',
+    '/js/challenges.js',
     '/js/cropper.js',
 ];
 
-// Supabase — nunca cachear (tempo real)
+// Supabase — nunca cachear
 const NUNCA_CACHEAR = [
     'supabase.co',
     'supabase.in',
     'supabase.io',
 ];
 
+// JS/HTML do app — sempre preferir rede
+function isAppCode(url) {
+    return (
+        url.pathname === '/' ||
+        url.pathname.endsWith('/index.html') ||
+        url.pathname.endsWith('/404.html') ||
+        url.pathname.endsWith('.html') ||
+        url.pathname.endsWith('.js') ||
+        url.pathname.endsWith('.json')
+    );
+}
+
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(SHELL).catch((err) => {
+        caches.open(CACHE_NAME)
+            .then((cache) => cache.addAll(SHELL))
+            .catch((err) => {
                 console.warn('[SW] Alguns arquivos do shell não foram cacheados:', err);
-            });
-        }).then(() => self.skipWaiting())
+            })
+            .then(() => self.skipWaiting())
     );
 });
 
@@ -41,97 +57,134 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
             Promise.all(
-                keys
-                    .filter((key) => key !== CACHE_NAME && key !== CACHE_ESTATICO)
-                    .map((key) => { console.log('[SW] Deletando cache antigo:', key); return caches.delete(key); })
+                keys.map((key) => {
+                    if (key !== CACHE_NAME && key !== CACHE_ESTATICO) {
+                        return caches.delete(key);
+                    }
+                    return Promise.resolve(false);
+                })
             )
         ).then(() => self.clients.claim())
     );
 });
 
 self.addEventListener('fetch', (event) => {
-    const url = event.request.url;
+    const req = event.request;
 
-    const ehSupabase = NUNCA_CACHEAR.some((d) => url.includes(d));
-    if (ehSupabase) { event.respondWith(fetch(event.request)); return; }
+    if (req.method !== 'GET') return;
 
-    if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
-        event.respondWith(cacheFirst(event.request, CACHE_ESTATICO)); return;
+    const url = new URL(req.url);
+
+    // Supabase nunca entra em cache
+    const ehSupabase = NUNCA_CACHEAR.some((d) => url.hostname.includes(d));
+    if (ehSupabase) {
+        event.respondWith(fetch(req));
+        return;
     }
 
-    if (url.includes('cdn.jsdelivr.net') || url.includes('cdnjs.cloudflare.com') || url.includes('esm.sh')) {
-        event.respondWith(cacheFirst(event.request, CACHE_ESTATICO)); return;
+    // Código do app: rede primeiro, cache só como fallback
+    if (isAppCode(url)) {
+        event.respondWith(networkFirst(req, CACHE_NAME));
+        return;
     }
 
-    if (url.includes('/imagens/') && (url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.webp'))) {
-        event.respondWith(cacheFirst(event.request, CACHE_ESTATICO)); return;
+    // Fonts/CDN/imagens: cache first
+    if (
+        url.hostname.includes('fonts.googleapis.com') ||
+        url.hostname.includes('fonts.gstatic.com') ||
+        url.hostname.includes('cdn.jsdelivr.net') ||
+        url.hostname.includes('cdnjs.cloudflare.com') ||
+        url.hostname.includes('esm.sh')
+    ) {
+        event.respondWith(cacheFirst(req, CACHE_ESTATICO));
+        return;
     }
 
-    event.respondWith(networkFirst(event.request));
+    if (url.pathname.includes('/imagens/')) {
+        event.respondWith(cacheFirst(req, CACHE_ESTATICO));
+        return;
+    }
+
+    event.respondWith(networkFirst(req, CACHE_NAME));
 });
 
-async function networkFirst(request) {
+async function networkFirst(request, cacheName = CACHE_NAME) {
     try {
-        const resposta = await fetch(request);
-        if (resposta && resposta.status === 200 && resposta.type !== 'opaque') {
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(request, resposta.clone());
+        const response = await fetch(request);
+
+        if (response && response.ok && response.type !== 'opaque') {
+            const cache = await caches.open(cacheName);
+            await cache.put(request, response.clone());
         }
-        return resposta;
+
+        return response;
     } catch (err) {
         const cached = await caches.match(request);
         if (cached) return cached;
-        return caches.match('/index.html');
+
+        if (request.mode === 'navigate') {
+            return (await caches.match('/index.html')) || Response.error();
+        }
+
+        return Response.error();
     }
 }
 
-async function cacheFirst(request, cacheName = CACHE_NAME) {
+async function cacheFirst(request, cacheName = CACHE_ESTATICO) {
     const cached = await caches.match(request);
-    if (cached) {
-        fetch(request).then((resposta) => {
-            if (resposta && resposta.status === 200) {
-                caches.open(cacheName).then((cache) => cache.put(request, resposta));
-            }
-        }).catch(() => {});
-        return cached;
-    }
+    if (cached) return cached;
+
     try {
-        const resposta = await fetch(request);
-        if (resposta && resposta.status === 200) {
+        const response = await fetch(request);
+
+        if (response && response.ok) {
             const cache = await caches.open(cacheName);
-            cache.put(request, resposta.clone());
+            await cache.put(request, response.clone());
         }
-        return resposta;
+
+        return response;
     } catch (err) {
         return new Response('Sem conexão', { status: 503 });
     }
 }
 
 self.addEventListener('message', (event) => {
-    if (event.data === 'SKIP_WAITING') self.skipWaiting();
-    if (event.data === 'LIMPAR_CACHE') caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+    if (event.data === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+
+    if (event.data === 'LIMPAR_CACHE') {
+        event.waitUntil(
+            caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        );
+    }
 });
 
 self.addEventListener('push', (event) => {
-    const data    = event.data ? event.data.json() : {};
-    const titulo  = data.titulo || 'Heróis da Fé';
-    const opcoes  = {
-        body:    data.mensagem || 'Nova atualização na sua jornada!',
-        icon:    '/imagens/icon-192.png',
-        badge:   '/imagens/icon-72.png',
+    const data = event.data ? event.data.json() : {};
+    const titulo = data.titulo || 'Heróis da Fé';
+    const opcoes = {
+        body: data.mensagem || 'Nova atualização na sua jornada!',
+        icon: '/imagens/icon-192.png',
+        badge: '/imagens/icon-72.png',
         vibrate: [200, 100, 200],
-        data:    { url: data.url || 'https://www.heroisdafe.app.br/' },
-        actions: [{ action: 'abrir', title: '⚔️ Abrir App' }, { action: 'fechar', title: 'Fechar' }]
+        data: { url: data.url || 'https://www.heroisdafe.app.br/' },
+        actions: [
+            { action: 'abrir', title: '⚔️ Abrir App' },
+            { action: 'fechar', title: 'Fechar' }
+        ]
     };
+
     event.waitUntil(self.registration.showNotification(titulo, opcoes));
 });
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
+
     if (event.action === 'abrir' || !event.action) {
         const url = event.notification.data?.url || 'https://www.heroisdafe.app.br/';
         event.waitUntil(clients.openWindow(url));
     }
 });
 
-console.log('[SW] Heróis da Fé v4 (Supabase) ativo!');
+console.log('[SW] Heróis da Fé v5 ativo!');
