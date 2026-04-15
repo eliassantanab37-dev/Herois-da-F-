@@ -1,7 +1,11 @@
 // js/auth.js
 // ═══════════════════════════════════════════════════════════
-// AUTENTICAÇÃO — LOGIN, REGISTRO, RECUPERAR SENHA, LISTENER
-// Compatível com o index atual + reset de senha
+// AUTENTICAÇÃO — LOGIN, CADASTRO, RECUPERAR SENHA, LISTENER
+// Corrigido para:
+// 1) criar conta e entrar direto
+// 2) login mostrar erro real
+// 3) liberar entrada só quando clicar em entrar/cadastrar
+// 4) não depender de login automático ao abrir o app
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './config.js';
@@ -50,7 +54,7 @@ if (inputFoto) {
 
             const { error } = await supabase
                 .from('users')
-                .update({ photoURL: base64 })
+                .update({ photoURL: base64, lastUpdate: new Date().toISOString() })
                 .eq('uid', user.id);
 
             if (error) throw error;
@@ -176,14 +180,43 @@ function mostrarSucesso(mensagem) {
 }
 
 function traduzirErro(msg) {
-    if (!msg) return null;
-    if (msg.includes('already registered')) return 'Este e-mail já está cadastrado.';
-    if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
-    if (msg.includes('Password should be')) return 'Senha fraca. Use pelo menos 8 caracteres.';
-    if (msg.includes('Unable to validate')) return 'E-mail inválido.';
-    if (msg.includes('Network')) return 'Sem conexão com a internet.';
-    if (msg.includes('Email rate limit exceeded')) return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
-    return null;
+    if (!msg) return 'Ocorreu um erro inesperado.';
+
+    const texto = String(msg);
+
+    if (texto.includes('already registered') || texto.includes('User already registered')) {
+        return 'Este e-mail já está cadastrado.';
+    }
+
+    if (texto.includes('Invalid login credentials')) {
+        return 'E-mail ou senha incorretos.';
+    }
+
+    if (texto.includes('Email not confirmed')) {
+        return 'Seu e-mail ainda não foi confirmado.';
+    }
+
+    if (texto.includes('Password should be')) {
+        return 'Senha fraca. Use pelo menos 8 caracteres.';
+    }
+
+    if (texto.includes('Unable to validate')) {
+        return 'E-mail inválido.';
+    }
+
+    if (texto.includes('Network')) {
+        return 'Sem conexão com a internet.';
+    }
+
+    if (texto.includes('Email rate limit exceeded')) {
+        return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
+    }
+
+    if (texto.includes('duplicate key value')) {
+        return 'Esse cadastro já existe.';
+    }
+
+    return texto;
 }
 
 function validarDataNascimento(data) {
@@ -205,6 +238,53 @@ function validarDataNascimento(data) {
 function formatarDataParaBanco(dataBR) {
     const [dia, mes, ano] = dataBR.split('/');
     return `${ano}-${mes}-${dia}`;
+}
+
+async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco) {
+    const payload = {
+        uid: user.id,
+        name: nome,
+        email: email,
+        data_nascimento: dataNascimentoBanco,
+        photoURL: null,
+        points: 0,
+        nivel: 1,
+        expAtual: 0,
+        badges: {},
+        createdAt: new Date().toISOString(),
+        lastUpdate: new Date().toISOString()
+    };
+
+    const { data: existente } = await supabase
+        .from('users')
+        .select('uid')
+        .eq('uid', user.id)
+        .maybeSingle();
+
+    if (existente) {
+        const { error: updateError } = await supabase
+            .from('users')
+            .update({
+                name: nome,
+                email: email,
+                data_nascimento: dataNascimentoBanco,
+                lastUpdate: new Date().toISOString()
+            })
+            .eq('uid', user.id);
+
+        if (updateError) throw updateError;
+        return;
+    }
+
+    const { error: insertError } = await supabase
+        .from('users')
+        .insert(payload);
+
+    if (insertError) throw insertError;
+}
+
+async function liberarEntradaNoJogo() {
+    sessionStorage.setItem('herois_login_liberado', 'true');
 }
 
 // ── CADASTRO ───────────────────────────────────────────────
@@ -235,6 +315,8 @@ if (btnRegistrar) {
         btnRegistrar.innerText = 'INICIANDO...';
 
         try {
+            const dataNascimentoBanco = formatarDataParaBanco(data);
+
             const { data: authData, error } = await supabase.auth.signUp({
                 email,
                 password: senha
@@ -242,27 +324,30 @@ if (btnRegistrar) {
 
             if (error) throw error;
 
-            const user = authData.user;
-            if (!user) throw new Error('Usuário não retornado no cadastro');
+            let user = authData?.user || null;
 
-            const { error: insertError } = await supabase
-                .from('users')
-                .insert({
-                    uid: user.id,
-                    name: nome,
-                    email: email,
-                    data_nascimento: formatarDataParaBanco(data),
-                    photoURL: null,
-                    points: 0,
-                    nivel: 1,
-                    expAtual: 0,
-                    createdAt: new Date().toISOString(),
-                    lastUpdate: new Date().toISOString()
-                });
+            // Se vier usuário do signUp, cria o perfil
+            if (user) {
+                await criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco);
+            }
 
-            if (insertError) throw insertError;
+            // Faz login automático depois do cadastro
+            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                email,
+                password: senha
+            });
 
-            mostrarSucesso('Conta criada com sucesso! Agora entre no jogo.');
+            if (loginError) throw loginError;
+
+            user = loginData?.user || user;
+            if (!user) {
+                throw new Error('Não foi possível iniciar a sessão após o cadastro.');
+            }
+
+            // Garante o perfil
+            await criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco);
+
+            await liberarEntradaNoJogo();
 
             const campoNome = document.getElementById('reg-nome');
             const campoEmail = document.getElementById('reg-email');
@@ -274,9 +359,15 @@ if (btnRegistrar) {
             if (campoSenha) campoSenha.value = '';
             if (campoData) campoData.value = '';
 
-            if (tabEntrar) tabEntrar.click();
+            mostrarSucesso('Conta criada com sucesso! Entrando no jogo...');
+
+            // onAuthStateChange costuma cuidar disso, mas força atualização se precisar
+            setTimeout(() => {
+                window.location.reload();
+            }, 300);
         } catch (erro) {
-            mostrarErro(traduzirErro(erro.message) || erro.message);
+            console.error('[auth] Erro no cadastro:', erro);
+            mostrarErro(traduzirErro(erro.message));
         } finally {
             btnRegistrar.disabled = false;
             btnRegistrar.innerText = 'INICIAR JORNADA';
@@ -305,9 +396,14 @@ if (btnEntrar) {
 
             if (error) throw error;
 
-            sessionStorage.setItem('herois_login_liberado', 'true');
-        } catch (_) {
-            mostrarErro('E-mail ou senha incorretos');
+            await liberarEntradaNoJogo();
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 200);
+        } catch (erro) {
+            console.error('[auth] Erro no login:', erro);
+            mostrarErro(traduzirErro(erro.message));
         } finally {
             btnEntrar.disabled = false;
             btnEntrar.innerText = 'ENTRAR NO JOGO';
@@ -338,7 +434,8 @@ if (btnRecuperar) {
 
             mostrarSucesso('E-mail de recuperação enviado com sucesso! Abra o link do e-mail para criar uma nova senha.');
         } catch (erro) {
-            mostrarErro(traduzirErro(erro.message) || erro.message);
+            console.error('[auth] Erro ao recuperar senha:', erro);
+            mostrarErro(traduzirErro(erro.message));
         } finally {
             btnRecuperar.disabled = false;
             btnRecuperar.innerText = 'Recuperar Senha';
@@ -350,13 +447,20 @@ if (btnRecuperar) {
 if (btnSair) {
     btnSair.addEventListener('click', async () => {
         if (confirm('Deseja sair da conta?')) {
-            if (_realtimeChannel) {
-                supabase.removeChannel(_realtimeChannel);
-                _realtimeChannel = null;
-            }
+            try {
+                if (_realtimeChannel) {
+                    supabase.removeChannel(_realtimeChannel);
+                    _realtimeChannel = null;
+                }
 
-            sessionStorage.removeItem('herois_login_liberado');
-            await supabase.auth.signOut();
+                sessionStorage.removeItem('herois_login_liberado');
+                await supabase.auth.signOut();
+
+                window.location.reload();
+            } catch (erro) {
+                console.error('[auth] Erro ao sair:', erro);
+                mostrarErro('Não foi possível sair da conta.');
+            }
         }
     });
 }
