@@ -84,7 +84,7 @@ async function atualizarPontosDoUsuario(uid, pontosGanhos) {
         .from('users')
         .select('points')
         .eq('uid', uid)
-        .maybeSingle();
+        .single();
 
     if (selectError) throw selectError;
 
@@ -240,7 +240,7 @@ async function _renderizarRanking() {
 }
 
 // ── VOLTAR PARA BÍBLIA ─────────────────────────────────────
-window.voltarParaBiblia = async function () {
+window.voltarParaBiblia = function () {
     document.body.classList.remove('modo-ranking-ativo');
     document.body.style.backgroundImage = '';
     document.body.style.backgroundSize = '';
@@ -249,16 +249,7 @@ window.voltarParaBiblia = async function () {
         supabase.removeChannel(_rankingChannel);
         _rankingChannel = null;
     }
-    try {
-        if (typeof window.abrirBibliaPrincipal === 'function') {
-            await window.abrirBibliaPrincipal();
-        } else {
-            await import('./bible.js');
-            if (typeof window.carregarListaLivros === 'function') window.carregarListaLivros();
-        }
-    } catch (erro) {
-        console.error('[game] Falha ao voltar para a Bíblia:', erro);
-    }
+    if (window.carregarListaLivros) window.carregarListaLivros();
 };
 
 // ── EXIBIR CAPÍTULO ────────────────────────────────────────
@@ -334,153 +325,48 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
     });
 };
 
-
-function _escAttr(valor) {
-    return String(valor ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function _textoPerguntaBruto(pergunta) {
-    if (pergunta == null) return '';
-    if (typeof pergunta === 'string') return pergunta;
-    if (typeof pergunta !== 'object') return String(pergunta);
-    return (
-        pergunta.texto ||
-        pergunta.pergunta ||
-        pergunta.enunciado ||
-        pergunta.questao ||
-        pergunta.question ||
-        pergunta.titulo ||
-        pergunta.descricao ||
-        ''
-    );
-}
-
-function _normalizarOpcoes(pergunta) {
-    if (!pergunta || typeof pergunta !== 'object') return [];
-    let opcoes = [];
-    if (Array.isArray(pergunta.opcoes)) opcoes = pergunta.opcoes;
-    else if (Array.isArray(pergunta.alternativas)) opcoes = pergunta.alternativas;
-    else if (Array.isArray(pergunta.respostas)) opcoes = pergunta.respostas;
-
-    const indiceCorreto = Number(
-        pergunta.indiceCorreto ??
-        pergunta.correta ??
-        pergunta.resposta_correta ??
-        pergunta.alternativa_correta ??
-        -1
-    );
-
-    return opcoes.map((opt, idx) => {
-        if (typeof opt === 'string') {
-            return {
-                numero: idx + 1,
-                texto: opt,
-                correta: indiceCorreto === idx || indiceCorreto === idx + 1
-            };
-        }
-
-        const texto = opt?.texto ?? opt?.resposta ?? opt?.label ?? opt?.titulo ?? opt?.alternativa ?? `Opção ${idx + 1}`;
-        const correta = Boolean(
-            opt?.correta === true ||
-            opt?.certa === true ||
-            opt?.isCorrect === true ||
-            indiceCorreto === idx ||
-            indiceCorreto === idx + 1
-        );
-
-        return {
-            numero: opt?.numero ?? idx + 1,
-            texto,
-            correta
-        };
-    });
-}
-
-function _normalizarPergunta(pergunta) {
-    if (!pergunta) return null;
-
-    const texto = _textoPerguntaBruto(pergunta);
-    let opcoes = _normalizarOpcoes(pergunta);
-
-    if (!opcoes.length) {
-        opcoes = [
-            { numero: 1, texto: 'Sim, li com atenção', correta: true },
-            { numero: 2, texto: 'Não, quero ler novamente', correta: false }
-        ];
-    }
-
-    return {
-        texto: texto || 'Responda a pergunta do capítulo:',
-        explicacao: typeof pergunta === 'object' ? (pergunta.explicacao || pergunta.explicação || '') : '',
-        opcoes
-    };
-}
-
-window.abrirPerguntaCapitulo = function (chaveLivro, numeroCapitulo) {
-    import('./bible.js').then(modulo => {
-        const livro = modulo.bible[chaveLivro];
-        const capitulo = livro?.capitulos?.[numeroCapitulo];
-        const pergunta = _normalizarPergunta(capitulo?.pergunta);
-
-        if (!livro || !capitulo || !pergunta) {
-            alert('Este capítulo não possui pergunta configurada!');
-            return;
-        }
-
-        const container = document.getElementById('bible-text');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div style="padding:40px; max-width:770px; margin:0 auto; text-align:center;">
-                <button onclick="window.exibirCapitulo('${_escAttr(chaveLivro)}','${_escAttr(numeroCapitulo)}')" class="btn-mission" style="margin-bottom:20px; width:100%; max-width:770px;">⬅ Voltar ao Capítulo</button>
-                <div style="background:linear-gradient(180deg, rgba(24,20,6,0.96), rgba(9,9,9,0.96)); padding:24px; border-radius:24px; border:1.5px solid rgba(212,175,55,0.78); box-shadow:0 0 24px rgba(212,175,55,0.14), inset 0 0 18px rgba(212,175,55,0.05); text-align:left;">
-                    <h2 style="color:#d4af37; font-family:'Cinzel'; margin:0 0 18px 0; font-size:2rem;">Pergunta do Capítulo</h2>
-                    <div style="font-size:1.35rem; color:#fff; margin-bottom:22px; line-height:1.65; text-shadow:0 2px 5px rgba(0,0,0,.9);">${_escAttr(pergunta.texto)}</div>
-                    <div style="display:flex; flex-direction:column; gap:14px;">
-                        ${pergunta.opcoes.map((opt, idx) => `
-                            <button class="opcao-pergunta-capitulo" data-correta="${opt.correta ? 'true' : 'false'}"
-                                style="padding:18px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(212,175,55,0.7); border-radius:18px; cursor:pointer; text-align:left; transition:transform .2s, background .2s, box-shadow .2s;"
-                                onmouseover="this.style.transform='translateY(-1px)';this.style.background='rgba(212,175,55,0.12)';this.style.boxShadow='0 0 12px rgba(212,175,55,0.16)'"
-                                onmouseout="this.style.transform='translateY(0)';this.style.background='rgba(255,255,255,0.04)';this.style.boxShadow='none'">
-                                <span style="color:#d4af37; font-weight:bold; margin-right:8px;">${_escAttr(opt.numero ?? idx + 1)}.</span>${_escAttr(opt.texto)}
-                            </button>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>`;
-
-        container.querySelectorAll('.opcao-pergunta-capitulo').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                window.verificarResposta(chaveLivro, numeroCapitulo, btn.dataset.correta === 'true', _escAttr(pergunta.explicacao || ''));
-            });
-        });
-
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-};
-
-
 // ── MISSÃO (QUIZ) ──────────────────────────────────────────
+function resolverPerguntaDoCapitulo(capitulo) {
+    if (!capitulo) return null;
+    try {
+        const valor = typeof capitulo.pergunta === 'function' ? capitulo.pergunta() : capitulo.pergunta;
+        if (!valor) return null;
+        if (typeof valor.texto === 'string' && Array.isArray(valor.opcoes)) return valor;
+        return null;
+    } catch (e) {
+        console.error('Erro ao resolver pergunta do capítulo:', e);
+        return null;
+    }
+}
+
 window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
     import('./bible.js').then(modulo => {
         const livro = modulo.bible[chaveLivro];
         if (!livro) return;
         const capitulo = livro.capitulos[numeroCapitulo];
-        const perguntaOriginal = capitulo?.pergunta;
-        if (!perguntaOriginal) return alert('Este capítulo não possui desafio!');
+        const pergunta = resolverPerguntaDoCapitulo(capitulo);
+        if (!pergunta) return alert('Este capítulo não possui desafio configurado corretamente!');
 
-        const textoPreview = _textoPerguntaBruto(perguntaOriginal);
+        const explicacao = String(pergunta.explicacao || '').replace(/'/g, "\'").replace(/
+/g, ' ');
+        const pontosGanhos = Number(pergunta.pontosGanhos || 20);
+
         const container = document.getElementById('bible-text');
         container.innerHTML = `
-            <div style="padding:40px; max-width:770px; margin:0 auto; text-align:center;">
-                <button onclick="window.exibirCapitulo('${chaveLivro}','${numeroCapitulo}')" class="btn-mission" style="margin-bottom:20px; width:100%; max-width:770px;">⬅ Voltar ao Capítulo</button>
-                <div style="background:linear-gradient(180deg, rgba(24,20,6,0.96), rgba(9,9,9,0.96)); padding:24px; border-radius:24px; border:1.5px solid rgba(212,175,55,0.78); box-shadow:0 0 24px rgba(212,175,55,0.14), inset 0 0 18px rgba(212,175,55,0.05);">
-                    <h2 style="color:#d4af37; font-family:'Cinzel'; margin:0 0 18px 0; font-size:2rem; text-align:left;">Pergunta do Capítulo</h2>
-                    <div style="font-size:1.35rem; color:#fff; margin-bottom:22px; line-height:1.65; text-align:left; text-shadow:0 2px 5px rgba(0,0,0,.9);">${_escAttr(textoPreview || 'Você leu com atenção este capítulo?')}</div>
-                    <div style="display:flex; flex-direction:column; gap:14px;">
-                        <button onclick="window.abrirPerguntaCapitulo('${chaveLivro}','${numeroCapitulo}')" style="padding:18px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(212,175,55,0.7); border-radius:18px; cursor:pointer; text-align:left;">Sim, li com atenção</button>
-                        <button onclick="window.exibirCapitulo('${chaveLivro}','${numeroCapitulo}')" style="padding:18px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(212,175,55,0.7); border-radius:18px; cursor:pointer; text-align:left;">Não, quero ler novamente</button>
-                    </div>
+            <div style="padding:40px; max-width:600px; margin:0 auto; text-align:center;">
+                <button onclick="window.exibirCapitulo('${chaveLivro}','${numeroCapitulo}')" class="btn-mission" style="margin-bottom:20px;">⬅ Voltar ao Capítulo</button>
+                <h2 style="color:#d4af37; font-family:'Cinzel'; margin-bottom:30px;">PERGUNTA DO CAPÍTULO</h2>
+                <div style="background:rgba(0,0,0,0.6); padding:30px; border-radius:15px; border:2px solid #d4af37; margin-bottom:30px; backdrop-filter:blur(10px);">
+                    <p style="font-size:1.3rem; color:#fff;">${pergunta.texto}</p>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    ${pergunta.opcoes.map(opt => `
+                        <button onclick="window.verificarResposta('${chaveLivro}','${numeroCapitulo}',${opt.correta},'${explicacao}',${pontosGanhos})"
+                                style="padding:18px; background:rgba(255,255,255,0.05); color:#fff; border:1px solid #d4af37; border-radius:8px; cursor:pointer; text-align:left; transition:background 0.2s;"
+                                onmouseover="this.style.background='rgba(212,175,55,0.15)'"
+                                onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+                            <span style="color:#d4af37; font-weight:bold;">${opt.numero}.</span> ${opt.texto}
+                        </button>`).join('')}
                 </div>
             </div>`;
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -488,59 +374,9 @@ window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
 };
 
 // ── VERIFICAR RESPOSTA ─────────────────────────────────────
-async function salvarProgressoCapitulo(uid, livroChave, capNum) {
-    const capituloNumero = Number(capNum);
-    const base = {
-        uid,
-        livro: livroChave,
-        capitulo: capituloNumero,
-        concluido: true
-    };
-
-    const { data: existente, error: erroBusca } = await supabase
-        .from('progresso')
-        .select('id, concluido')
-        .eq('uid', uid)
-        .eq('livro', livroChave)
-        .eq('capitulo', capituloNumero)
-        .maybeSingle();
-
-    if (erroBusca) throw erroBusca;
-    if (existente?.concluido === true) return { jaConcluido: true };
-
-    if (existente?.id) {
-        const tentativas = [
-            { ...base, created_at: new Date().toISOString() },
-            { ...base, data: new Date().toISOString() },
-            base
-        ];
-        let ultimoErro = null;
-        for (const payload of tentativas) {
-            const { error } = await supabase.from('progresso').update(payload).eq('id', existente.id);
-            if (!error) return { jaConcluido: false };
-            ultimoErro = error;
-        }
-        throw ultimoErro;
-    }
-
-    const tentativas = [
-        { ...base, created_at: new Date().toISOString() },
-        { ...base, data: new Date().toISOString() },
-        base
-    ];
-    let ultimoErro = null;
-    for (const payload of tentativas) {
-        const { error } = await supabase.from('progresso').insert(payload);
-        if (!error) return { jaConcluido: false };
-        ultimoErro = error;
-    }
-    throw ultimoErro;
-}
-
-window.verificarResposta = async function (livroChave, capNum, ehCorreta, explicacao) {
+window.verificarResposta = async function (livroChave, capNum, ehCorreta, explicacao, pontosGanhos = 20) {
     if (processandoResposta) return;
     processandoResposta = true;
-    ehCorreta = ehCorreta === true || ehCorreta === 'true';
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -552,48 +388,65 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
 
     if (ehCorreta) {
         try {
-            const { jaConcluido } = await salvarProgressoCapitulo(user.id, livroChave, capNum);
+            const capituloNumero = Number(capNum);
+            const { data: progExistente, error: buscaErro } = await supabase
+                .from('progresso')
+                .select('id, concluido')
+                .eq('uid', user.id)
+                .eq('livro', livroChave)
+                .eq('capitulo', capituloNumero)
+                .maybeSingle();
+            if (buscaErro) throw buscaErro;
 
+            const jaConcluido = progExistente?.concluido === true;
             if (jaConcluido) {
                 exibirFeedbackJaRealizado();
                 setTimeout(() => {
                     processandoResposta = false;
                     window.abrirLivro(livroChave);
-                }, 2200);
+                }, 1800);
                 return;
             }
 
-            if (window.confetti) {
-                window.confetti({
-                    particleCount: 150,
-                    spread: 70,
-                    origin: { y: 0.6 },
-                    colors: ['#d4af37', '#ffffff', '#ffdf00']
-                });
+            if (progExistente?.id) {
+                const { error: updateProgErro } = await supabase
+                    .from('progresso')
+                    .update({ concluido: true, created_at: new Date().toISOString() })
+                    .eq('id', progExistente.id);
+                if (updateProgErro) throw updateProgErro;
+            } else {
+                const { error: insertProgErro } = await supabase
+                    .from('progresso')
+                    .insert({ uid: user.id, livro: livroChave, capitulo: capituloNumero, concluido: true, created_at: new Date().toISOString() });
+                if (insertProgErro) throw insertProgErro;
             }
 
-            tocarSomFogos();
+            await atualizarPontosDoUsuario(user.id, Number(pontosGanhos || 20));
 
-            const divVitoria = document.createElement('div');
-            divVitoria.className = 'vitoria-popup';
-            divVitoria.innerHTML = `<h2>✨ PARABÉNS! ✨</h2><p>Você acertou +20 pontos</p><div style="font-size:0.9rem; color:#d4af37; margin-top:10px; letter-spacing:2px;">GLÓRIA AO SENHOR JESUS</div>`;
-            document.body.appendChild(divVitoria);
-
-            await atualizarPontosDoUsuario(user.id, 20);
-
-            const { data: progData } = await supabase
+            const { data: progData, error: progErro } = await supabase
                 .from('progresso')
                 .select('concluido')
                 .eq('uid', user.id)
                 .eq('concluido', true);
+            if (progErro) throw progErro;
 
             const totalCaps = progData?.length || 0;
             await atualizarExpAposLeitura(user.id, totalCaps);
             atualizarBarraExpMenu(totalCaps);
             window.dispatchEvent(new CustomEvent('exp_atualizada', { detail: { totalCaps } }));
 
-            await verificarLivroCompleto(user.id, livroChave);
-            await verificarBadges(user.id);
+            try { await verificarLivroCompleto(user.id, livroChave); } catch (e) { console.warn('Livro completo:', e); }
+            try { await verificarBadges(user.id, livroChave); } catch (e) { console.warn('Badges:', e); }
+
+            if (window.confetti) {
+                window.confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#d4af37', '#ffffff', '#ffdf00'] });
+            }
+            tocarSomFogos();
+
+            const divVitoria = document.createElement('div');
+            divVitoria.className = 'vitoria-popup';
+            divVitoria.innerHTML = `<h2>✨ PARABÉNS! ✨</h2><p>Você acertou +${Number(pontosGanhos || 20)} pontos</p><div style="font-size:0.9rem; color:#d4af37; margin-top:10px; letter-spacing:2px;">GLÓRIA AO SENHOR JESUS</div>`;
+            document.body.appendChild(divVitoria);
 
             setTimeout(() => {
                 divVitoria.remove();
@@ -604,11 +457,7 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
             console.error('Erro ao processar resposta:', e);
             processandoResposta = false;
             document.querySelectorAll('#bible-text button').forEach(btn => btn.disabled = false);
-            const msg = document.createElement('div');
-            msg.style.cssText = 'position:fixed;left:50%;top:55%;transform:translate(-50%,-50%);z-index:100000;background:rgba(45,0,0,.96);color:#fff;padding:22px 34px;border-radius:18px;border:2px solid #d4af37;box-shadow:0 0 24px rgba(0,0,0,.5);font-family:Poppins,sans-serif;font-size:1.1rem;';
-            msg.textContent = 'Erro ao salvar progresso.';
-            document.body.appendChild(msg);
-            setTimeout(() => msg.remove(), 2200);
+            alert('Erro ao salvar progresso.');
         }
     } else {
         const overlay = document.createElement('div');
