@@ -1,274 +1,171 @@
-// js/social.js — Migrado para Supabase
-// ═══════════════════════════════════════════════════════════
-
+// js/social.js
 import { supabase } from './config.js';
 
-const listaAmigosSidebar = document.getElementById('lista-amigos-sidebar');
+const lista = document.getElementById('lista-amigos-sidebar');
+const resultados = document.getElementById('sidebar-search-results');
+const input = document.getElementById('sidebar-search-input');
+let chFriends = null, chNotif = null, heartbeatTimer = null;
 
-function gerarAvatarPadrao(nome) {
-  const iniciais = nome ? nome.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) : '??';
-  const cores    = ['#d4af37', '#2ecc71', '#4a90e2', '#e74c3c', '#9b59b6', '#f39c12'];
-  const cor      = cores[Math.abs((nome || '').charCodeAt(0) || 0) % cores.length];
-  const svg      = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="200" fill="${cor}"/><text x="100" y="100" font-size="80" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central" font-family="Arial">${iniciais}</text></svg>`;
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+function campo(u, ...keys){ for (const k of keys) if (u && u[k] != null) return u[k]; return null; }
+function avatar(nome='?'){
+  const ini = nome.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase() || '?';
+  return `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="#d4a21e"/><text x="50%" y="54%" text-anchor="middle" font-family="Arial" font-size="86" font-weight="700" fill="#fff">${ini}</text></svg>`)}`;
 }
+function isOnline(v){ const t = campo(v,'lastUpdate','lastupdate'); if (!t) return false; return Date.now() - new Date(t).getTime() < 90000; }
+function idade(data){ if (!data) return '—'; const d = new Date(data); if (isNaN(d)) return '—'; const hoje = new Date(); let i = hoje.getFullYear()-d.getFullYear(); const m = hoje.getMonth()-d.getMonth(); if (m < 0 || (m===0 && hoje.getDate() < d.getDate())) i--; return i; }
 
-let _channelAmigos = null;
-let _channelNotif = null;
-let _heartbeatTimer = null;
-let _recarregarDebounce = null;
+async function heartbeat(uid){ await supabase.from('users').update({ lastUpdate:new Date().toISOString(), lastupdate:new Date().toISOString() }).eq('uid',uid); }
 
-function isOnline(lastUpdate) {
-  if (!lastUpdate) return false;
-  return (Date.now() - new Date(lastUpdate).getTime()) < 90000;
-}
-
-async function heartbeat(uid) {
-  await supabase.from('users').update({ lastUpdate: new Date().toISOString(),
-            lastupdate: new Date().toISOString(),
-                    lastupdate: new Date().toISOString() }).eq('uid', uid);
-}
-
-export function iniciarSocial(user) {
-  if (_channelAmigos) { supabase.removeChannel(_channelAmigos); _channelAmigos = null; }
-  if (_channelNotif) { supabase.removeChannel(_channelNotif); _channelNotif = null; }
-  if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
+export function iniciarSocial(user){
+  if (chFriends) supabase.removeChannel(chFriends);
+  if (chNotif) supabase.removeChannel(chNotif);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (!user) return;
-
-  _recarregarSidebar(user.id);
+  recarregarSidebar(user.id);
+  initBusca(user.id);
   heartbeat(user.id);
-  _heartbeatTimer = setInterval(() => heartbeat(user.id), 45000);
-  window.addEventListener('beforeunload', () => heartbeat(user.id));
-
-  const recarregar = () => {
-    clearTimeout(_recarregarDebounce);
-    _recarregarDebounce = setTimeout(() => _recarregarSidebar(user.id), 250);
-  };
-
-  _channelAmigos = supabase
-    .channel('social-friends-' + user.id)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'friends', filter: `uid=eq.${user.id}` }, recarregar)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, recarregar)
+  heartbeatTimer = setInterval(() => heartbeat(user.id), 45000);
+  chFriends = supabase.channel('friends-'+user.id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'friends'},()=>recarregarSidebar(user.id))
+    .on('postgres_changes',{event:'*',schema:'public',table:'users'},()=>recarregarSidebar(user.id))
+    .subscribe();
+  chNotif = supabase.channel('social-notif-'+user.id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'notificacoes',filter:`to_uid=eq.${user.id}`},()=>recarregarSidebar(user.id))
     .subscribe();
 
-  _channelNotif = supabase
-    .channel('social-notifs-' + user.id)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'notificacoes', filter: `to_uid=eq.${user.id}` }, recarregar)
-    .subscribe();
+  document.getElementById('user-profile-pic')?.addEventListener('click', ()=>window.verPerfilDetalhado(user.id));
+  document.getElementById('btn-perfil-menu')?.addEventListener('click', ()=>window.verPerfilDetalhado(user.id));
+}
 
-  const pic = document.getElementById('user-profile-pic');
-  if (pic) {
-    pic.style.cursor = 'pointer';
-    pic.onclick = () => window.verPerfilDetalhado(user.id);
+async function recarregarSidebar(uid){
+  if (!lista) return;
+  const { data: pendentes = [] } = await supabase.from('friends').select('uid, friend_uid, status').eq('friend_uid', uid).eq('status','pending');
+  const { data: meus = [] } = await supabase.from('friends').select('friend_uid, status').eq('uid', uid).eq('status','accepted').limit(1000);
+  const ids = [...new Set(meus.map(x=>x.friend_uid))];
+  const { data: users = [] } = ids.length ? await supabase.from('users').select('*').in('uid', ids) : {data:[]};
+  const { data: notifs = [] } = await supabase.from('notificacoes').select('*').eq('to_uid', uid).eq('lida', false).order('created_at', {ascending:false});
+  lista.innerHTML = '';
+
+  // pending requests first
+  for (const p of pendentes) {
+    const { data: fromUser } = await supabase.from('users').select('*').eq('uid', p.uid).maybeSingle();
+    if (!fromUser) continue;
+    const div = document.createElement('div');
+    div.className = 'friend-row pending-row';
+    div.innerHTML = `<div class="friend-main"><img class="friend-avatar" src="${campo(fromUser,'photoURL','photourl') || avatar(fromUser.name)}"><div class="friend-text"><strong>Pedido de ${fromUser.name}</strong><span class="friend-meta">✉ aguardando decisão</span></div></div><div class="friend-actions"><button class="mini-btn gold" data-acc="${fromUser.uid}">Aceitar</button><button class="mini-btn red" data-rec="${fromUser.uid}">Recusar</button></div>`;
+    lista.appendChild(div);
   }
 
-  inicializarBuscaSidebar(user);
-}
+  const notifMsg = new Set(notifs.filter(n => (n.tipo||'') === 'mensagem' || (n.mensagem||'').toLowerCase().includes('msg')).map(n => n.from_uid));
+  const sorted = users.sort((a,b)=>{
+    const ao = isOnline(a), bo = isOnline(b);
+    if (notifMsg.has(a.uid) && !notifMsg.has(b.uid)) return -1;
+    if (!notifMsg.has(a.uid) && notifMsg.has(b.uid)) return 1;
+    if (ao && !bo) return -1;
+    if (!ao && bo) return 1;
+    return String(a.name||'').localeCompare(String(b.name||''), 'pt-BR');
+  }).slice(0,10);
 
-async function _recarregarSidebar(uid) {
-  if (!listaAmigosSidebar) return;
-
-  const { data: amigos } = await supabase.from('friends').select('friend_uid').eq('uid', uid);
-  listaAmigosSidebar.innerHTML = '';
-
-  if (!amigos || amigos.length === 0) {
-    listaAmigosSidebar.innerHTML = '<p style="color:#666; font-size:0.8rem; text-align:center; margin-top:20px;">Procure heróis para adicionar!</p>';
+  if (!pendentes.length && !sorted.length) {
+    lista.innerHTML = '<div class="friend-empty">Nenhum amigo ainda.</div>';
     return;
   }
 
-  const amigosIds = amigos.map(a => a.friend_uid);
-  const [{ data: dadosAmigos }, { data: notifs }] = await Promise.all([
-    supabase.from('users').select('uid, name, points, photoURL, photourl, lastUpdate, lastupdate').in('uid', amigosIds),
-    supabase.from('notificacoes').select('from_uid,tipo,mensagem').eq('to_uid', uid).eq('lida', false)
-  ]);
+  for (const u of sorted) {
+    const online = isOnline(u);
+    const div = document.createElement('div');
+    div.className = 'friend-row';
+    div.innerHTML = `<div class="friend-main"><div class="friend-avatar-wrap"><img class="friend-avatar" src="${campo(u,'photoURL','photourl') || avatar(u.name)}"><span class="status-dot ${online?'online':'offline'}"></span>${notifMsg.has(u.uid)?'<span class="msg-badge">✉</span>':''}</div><div class="friend-text"><strong>${u.name || 'Herói'}</strong><span class="friend-meta">${online?'Online':'Offline'} · ${Number(u.points)||0} pts</span></div></div>`;
+    div.addEventListener('click', ()=> notifMsg.has(u.uid) ? window.abrirChat(u.uid, u.name) : window.verPerfilDetalhado(u.uid));
+    lista.appendChild(div);
+  }
 
-  const notifSet = new Set((notifs || []).map(n => n.from_uid));
-  const ordenados = (dadosAmigos || []).sort((a, b) => {
-    const pesoA = (notifSet.has(a.uid) ? 20 : 0) + (isOnline(a.lastUpdate || a.lastupdate) ? 10 : 0);
-    const pesoB = (notifSet.has(b.uid) ? 20 : 0) + (isOnline(b.lastUpdate || b.lastupdate) ? 10 : 0);
-    if (pesoB !== pesoA) return pesoB - pesoA;
-    return (a.name || '').localeCompare(b.name || '', 'pt-BR');
-  }).slice(0, 10);
-
-  ordenados.forEach(u => renderizarAmigoSidebar(u.uid, u, isOnline(u.lastUpdate || u.lastupdate), notifSet.has(u.uid)));
+  lista.querySelectorAll('[data-acc]').forEach(b=>b.addEventListener('click', async (e)=>{ e.stopPropagation(); await aceitarPedido(uid, b.dataset.acc); }));
+  lista.querySelectorAll('[data-rec]').forEach(b=>b.addEventListener('click', async (e)=>{ e.stopPropagation(); await recusarPedido(uid, b.dataset.rec); }));
 }
 
-function renderizarAmigoSidebar(amigoId, amigoData, online, temMsgNaoLida) {
-  const foto = amigoData.photoURL || amigoData.photourl || gerarAvatarPadrao(amigoData.name);
-  const statusCor = online ? '#2ecc71' : '#555';
-
-  const div = document.createElement('div');
-  div.style.cssText = `display:flex; align-items:center; gap:10px; padding:10px; cursor:pointer; border-radius:8px; transition:background 0.2s; background:${temMsgNaoLida ? 'rgba(212,175,55,0.12)' : online ? 'rgba(46,204,113,0.05)' : 'rgba(0,0,0,0.2)'}; margin-bottom:5px; border-left:3px solid ${temMsgNaoLida ? '#d4af37' : 'transparent'};`;
-  div.innerHTML = `
-    <div style="position:relative; flex-shrink:0;">
-      <img src="${foto}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid ${temMsgNaoLida ? '#d4af37' : statusCor};" onerror="this.src='https://i.imgur.com/6VBx3io.png'">
-      <div style="position:absolute; bottom:0; right:0; width:11px; height:11px; background:${statusCor}; border-radius:50%; border:2px solid #111;"></div>
-      ${temMsgNaoLida ? `<div style="position:absolute; top:-4px; right:-4px; background:#d4af37; color:#000; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:bold; border:2px solid #111; animation:pulse-badge 1.5s infinite;">✉</div>` : ''}
-    </div>
-    <div style="flex:1; min-width:0;">
-      <p style="color:${temMsgNaoLida ? '#d4af37' : 'white'}; margin:0; font-weight:${temMsgNaoLida ? '700' : '500'}; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${amigoData.name}</p>
-      <p style="color:#888; margin:2px 0 0 0; font-size:0.7rem;">${online ? '<span style="color:#2ecc71;">● Online</span>' : '● Offline'} · ${amigoData.points || 0} pts</p>
-    </div>
-    ${temMsgNaoLida ? `<div style="background:#d4af37; color:#000; padding:4px 8px; border-radius:12px; font-size:0.7rem; font-weight:bold; white-space:nowrap;">💬 Nova</div>` : ''}`;
-
-  div.onclick = () => temMsgNaoLida ? window.abrirChat(amigoId, amigoData.name) : window.verPerfilDetalhado(amigoId);
-  div.onmouseover = () => div.style.background = 'rgba(212,175,55,0.2)';
-  div.onmouseout = () => div.style.background = temMsgNaoLida ? 'rgba(212,175,55,0.12)' : online ? 'rgba(46,204,113,0.05)' : 'rgba(0,0,0,0.2)';
-
-  listaAmigosSidebar.appendChild(div);
-}
-
-function inicializarBuscaSidebar(user) {
-  const input = document.getElementById('sidebar-search-input');
-  const resultados = document.getElementById('sidebar-search-results');
-  if (!input || !resultados) return;
-
-  let debounceTimer;
-
-  input.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
+function initBusca(meuUid){
+  if (!input || input.dataset.ready === '1') return;
+  input.dataset.ready = '1';
+  input.placeholder = 'Buscar amigo';
+  input.addEventListener('input', async ()=>{
     const termo = input.value.trim();
-    if (termo.length < 2) { resultados.innerHTML = ''; return; }
-    resultados.innerHTML = `<p style="color:#555; font-size:0.75rem; text-align:center; margin:8px 0;">Buscando...</p>`;
-
-    debounceTimer = setTimeout(async () => {
-      const [{ data: encontrados }, { data: amigosData }] = await Promise.all([
-        supabase.from('users').select('uid, name, points, photoURL').ilike('name', `%${termo}%`).limit(20),
-        supabase.from('friends').select('friend_uid').eq('uid', user.id)
-      ]);
-
-      resultados.innerHTML = '';
-      const amigosSet = new Set((amigosData || []).map(a => a.friend_uid));
-
-      (encontrados || []).forEach(u => {
-        if (u.uid === user.id) return;
-        const foto = u.photoURL || gerarAvatarPadrao(u.name);
-        const jaAmigo = amigosSet.has(u.uid);
-
-        const card = document.createElement('div');
-        card.style.cssText = `display:flex; align-items:center; gap:10px; padding:10px; margin-top:8px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:10px; transition:border 0.2s;`;
-        card.onmouseover = () => card.style.borderColor = '#d4af37';
-        card.onmouseout = () => card.style.borderColor = '#2a2a2a';
-
-        card.innerHTML = `
-          <img src="${foto}" style="width:38px; height:38px; border-radius:50%; object-fit:cover; border:2px solid #333; flex-shrink:0;" onerror="this.src='https://i.imgur.com/6VBx3io.png'">
-          <div style="flex:1; min-width:0;">
-            <p style="color:white; margin:0; font-size:0.83rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${u.name}</p>
-            <p style="color:#888; margin:2px 0 0 0; font-size:0.7rem;">${u.points || 0} pts</p>
-          </div>
-          <div style="display:flex; gap:6px; flex-shrink:0;">
-            ${!jaAmigo
-              ? `<button class="btn-add-amigo" data-uid="${u.uid}" data-nome="${u.name}" style="background:#2ecc71; color:white; border:none; padding:6px 10px; border-radius:6px; font-size:0.75rem; font-weight:bold; cursor:pointer;">➕</button>`
-              : `<button class="btn-chat-amigo" data-uid="${u.uid}" data-nome="${u.name}" style="background:#d4af37; color:black; border:none; padding:6px 10px; border-radius:6px; font-size:0.75rem; font-weight:bold; cursor:pointer;">💬</button>`}
-            <button class="btn-ver-perfil" data-uid="${u.uid}" style="background:#333; color:#d4af37; border:none; padding:6px 10px; border-radius:6px; font-size:0.75rem; cursor:pointer;">👤</button>
-          </div>`;
-        resultados.appendChild(card);
-      });
-
-      resultados.querySelectorAll('.btn-add-amigo').forEach(btn => {
-        btn.onclick = () => { window.adicionarAmigo(btn.dataset.uid, btn.dataset.nome); input.value = ''; resultados.innerHTML = ''; };
-      });
-      resultados.querySelectorAll('.btn-chat-amigo').forEach(btn => {
-        btn.onclick = () => { window.abrirChat(btn.dataset.uid, btn.dataset.nome); input.value = ''; resultados.innerHTML = ''; };
-      });
-      resultados.querySelectorAll('.btn-ver-perfil').forEach(btn => {
-        btn.onclick = () => { window.verPerfilDetalhado(btn.dataset.uid); };
-      });
-
-      if (!resultados.children.length) {
-        resultados.innerHTML = `<p style="color:#555; font-size:0.75rem; text-align:center; margin:8px 0;">Nenhum herói encontrado.</p>`;
-      }
-    }, 300);
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!input.contains(e.target) && !resultados.contains(e.target)) {
-      resultados.innerHTML = '';
-      input.value = '';
-    }
+    if (termo.length < 2) { resultados.innerHTML=''; return; }
+    const { data: encontrados = [] } = await supabase.from('users').select('*').ilike('name', `%${termo}%`).limit(20);
+    const { data: friends = [] } = await supabase.from('friends').select('friend_uid,status').eq('uid', meuUid);
+    const map = new Map(friends.map(f=>[f.friend_uid, f.status]));
+    resultados.innerHTML = '';
+    encontrados.filter(u=>u.uid !== meuUid).forEach(u=>{
+      const status = map.get(u.uid);
+      const card = document.createElement('div');
+      card.className = 'search-user-row';
+      card.innerHTML = `<img class="search-avatar" src="${campo(u,'photoURL','photourl') || avatar(u.name)}"><div class="search-user-text"><strong>${u.name || 'Herói'}</strong><span>${Number(u.points)||0} pts</span></div><div class="search-actions">${status==='accepted'?'<button class="mini-btn dark act-msg">Mensagem</button>':status==='pending'?'<button class="mini-btn dark" disabled>Pendente</button>':'<button class="mini-btn gold act-add">+Amigo</button>'}</div>`;
+      card.querySelector('.act-add')?.addEventListener('click', (e)=>{e.stopPropagation(); window.enviarPedidoAmizade(u.uid,u.name);});
+      card.querySelector('.act-msg')?.addEventListener('click', (e)=>{e.stopPropagation(); window.abrirChat(u.uid,u.name);});
+      card.addEventListener('click', ()=>window.verPerfilDetalhado(u.uid));
+      resultados.appendChild(card);
+    });
   });
 }
 
-window.verPerfilDetalhado = async function (uid) {
-  document.getElementById('perfil-detalhado')?.remove();
+async function dadosPerfil(uid, viewerId){
+  const [{data:userData},{data:accepted},{data:minePending},{data:chapters},{data:trophies}] = await Promise.all([
+    supabase.from('users').select('*').eq('uid',uid).single(),
+    supabase.from('friends').select('id').eq('uid',viewerId).eq('friend_uid',uid).eq('status','accepted').maybeSingle(),
+    supabase.from('friends').select('id').eq('uid',viewerId).eq('friend_uid',uid).eq('status','pending').maybeSingle(),
+    supabase.from('progresso').select('id').eq('uid',uid).eq('concluido',true),
+    supabase.from('user_badges').select('id').eq('uid',uid).eq('conquistada',true)
+  ]);
+  return { userData, jaAmigo: !!accepted, pendente: !!minePending, livrosLidos:(chapters||[]).length, trofeus:(trophies||[]).length };
+}
 
+window.verPerfilDetalhado = async function(uid){
+  document.getElementById('perfil-detalhado')?.remove();
   const overlay = document.createElement('div');
   overlay.id = 'perfil-detalhado';
-  overlay.style.cssText = `position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;`;
-  overlay.innerHTML = '<div style="color:#d4af37; font-size:2rem;">⏳</div>';
+  overlay.className = 'perfil-overlay';
+  overlay.innerHTML = `<div class="perfil-modal loading">Carregando...</div>`;
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { overlay.remove(); return; }
-
-  const [{ data: userData }, { data: amigoData }, { data: userStats }, { data: userBadges }] = await Promise.all([
-    supabase.from('users').select('*').eq('uid', uid).single(),
-    supabase.from('friends').select('friend_uid').eq('uid', user.id).eq('friend_uid', uid).single(),
-    supabase.from('user_stats').select('*').eq('uid', uid).single(),
-    supabase.from('user_badges').select('id, conquistada').eq('uid', uid).eq('conquistada', true)
-  ]);
-
-  if (!userData) { overlay.remove(); return; }
-
-  const isMe = user.id === uid;
-  const jaAmigo = !!amigoData;
-  const foto = userData.photoURL || userData.photourl || gerarAvatarPadrao(userData.name);
-  const nivel = userData.nivel || 1;
-  const nascimento = userData.data_nascimento ? new Date(userData.data_nascimento + 'T00:00:00') : null;
-  const idade = nascimento ? Math.max(0, Math.floor((Date.now() - nascimento.getTime()) / 31557600000)) : '—';
-  const livrosLidos = userStats?.total_livros_concluidos || 0;
-  const trofeus = userStats?.trofeus_total || (userBadges || []).length || 0;
-
-  overlay.innerHTML = `
-    <div style="background:#141412; border:2px solid #d4af37; border-radius:18px; padding:28px 24px; width:100%; max-width:380px; text-align:center; position:relative; box-shadow:0 0 40px rgba(212,175,55,0.25);">
-      <button onclick="document.getElementById('perfil-detalhado').remove()" style="position:absolute; top:12px; right:14px; background:none; border:none; color:#555; font-size:1.5rem; cursor:pointer; line-height:1;">×</button>
-      <div style="position:relative; width:110px; height:110px; margin:0 auto 14px;">
-        <img src="${foto}" style="width:100%; height:100%; border-radius:50%; border:3px solid #d4af37; object-fit:cover;" onerror="this.src='https://i.imgur.com/6VBx3io.png'">
-      </div>
-      <h2 style="color:#d4af37; margin:8px 0 4px; font-family:'Cinzel'; font-size:1.3rem;">${userData.name}</h2>
-      <p style="color:#888; margin:4px 0 10px;">Nível ${nivel} · ${userData.points || 0} pts</p>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 18px; text-align:left;">
-        <div style="background:rgba(255,255,255,0.04); border:1px solid #2e2a1d; border-radius:10px; padding:10px;"><div style="color:#777; font-size:.72rem;">Idade</div><div style="color:#fff; font-weight:700;">${idade}</div></div>
-        <div style="background:rgba(255,255,255,0.04); border:1px solid #2e2a1d; border-radius:10px; padding:10px;"><div style="color:#777; font-size:.72rem;">Livros lidos</div><div style="color:#fff; font-weight:700;">${livrosLidos}</div></div>
-        <div style="background:rgba(255,255,255,0.04); border:1px solid #2e2a1d; border-radius:10px; padding:10px;"><div style="color:#777; font-size:.72rem;">Troféus</div><div style="color:#fff; font-weight:700;">${trofeus}</div></div>
-        <div style="background:rgba(255,255,255,0.04); border:1px solid #2e2a1d; border-radius:10px; padding:10px;"><div style="color:#777; font-size:.72rem;">Email</div><div style="color:#fff; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${userData.email || '—'}</div></div>
-      </div>
-      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        ${isMe ? `<button id="modal-btn-mudar-foto" onclick="window._abrirCropPerfil()" style="flex:1; background:#d4af37; color:black; border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer; min-width:120px;">📷 Mudar Foto</button>` : ''}
-        ${!isMe && !jaAmigo ? `<button onclick="window.adicionarAmigo('${uid}','${userData.name}')" style="flex:1; background:#2ecc71; color:white; border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Adicionar</button>` : ''}
-        ${!isMe && jaAmigo ? `<button onclick="window.abrirChat('${uid}','${userData.name}')" style="flex:1; background:#d4af37; color:black; border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer;">💬 Conversar</button><button onclick="window.removerAmigo('${uid}')" style="flex:1; background:#ff5555; color:white; border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer;">✕ Remover</button>` : ''}
-      </div>
-    </div>`;
+  overlay.addEventListener('click', (e)=>{ if (e.target === overlay) overlay.remove(); });
+  const { data:{user} } = await supabase.auth.getUser();
+  if (!user) return overlay.remove();
+  const { userData, jaAmigo, pendente, livrosLidos, trofeus } = await dadosPerfil(uid, user.id);
+  if (!userData) return overlay.remove();
+  const me = uid === user.id;
+  const nome = userData.name || 'Herói';
+  const foto = campo(userData,'photoURL','photourl') || avatar(nome);
+  const nivel = Number(campo(userData,'nivel')) || 1;
+  overlay.innerHTML = `<div class="perfil-modal"><button class="perfil-close">×</button><button class="perfil-back">←</button><div class="perfil-photo-wrap"><img class="perfil-photo" src="${foto}"></div><div class="perfil-name">${nome}</div><div class="perfil-points">${Number(userData.points)||0} pts</div><div class="perfil-grid"><div><span>Nível</span><strong>${nivel}</strong></div><div><span>Idade</span><strong>${idade(userData.data_nascimento)}</strong></div><div><span>Livros lidos</span><strong>${livrosLidos}</strong></div><div><span>Troféus</span><strong>${trofeus}</strong></div></div><div class="perfil-actions"><button id="perfil-badges-btn" class="glass-btn dark">Troféus</button>${me?'<button id="perfil-mudar-foto" class="glass-btn gold">Mudar foto</button>':jaAmigo?`<button id="perfil-msg-btn" class="glass-btn gold">Enviar mesg</button>`:pendente?'<button class="glass-btn dark" disabled>Pendente</button>':`<button id="perfil-add-btn" class="glass-btn gold">+Amigo</button>`}</div><div id="perfil-extra"></div></div>`;
+  overlay.querySelector('.perfil-close')?.addEventListener('click', ()=>overlay.remove());
+  overlay.querySelector('.perfil-back')?.addEventListener('click', ()=>overlay.remove());
+  overlay.querySelector('#perfil-mudar-foto')?.addEventListener('click', ()=>document.getElementById('foto-input')?.click());
+  overlay.querySelector('#perfil-msg-btn')?.addEventListener('click', ()=>{ overlay.remove(); window.abrirChat(uid, nome); });
+  overlay.querySelector('#perfil-add-btn')?.addEventListener('click', ()=>window.enviarPedidoAmizade(uid, nome));
+  overlay.querySelector('#perfil-badges-btn')?.addEventListener('click', ()=>window.mostrarBadges?.());
 }
 
-window.fecharMenuPerfil = function () { document.getElementById('perfil-detalhado')?.remove(); };
-window._abrirCropPerfil = function () {
-  const inputFoto = document.getElementById('foto-input');
-  if (!inputFoto) return;
-  inputFoto.setAttribute('data-update-mode', 'true');
-  inputFoto.click();
-};
+window.enviarPedidoAmizade = async function(amigoId, nome=''){ 
+  const { data:{user} } = await supabase.auth.getUser(); if (!user) return;
+  await supabase.from('friends').upsert({ uid:user.id, friend_uid:amigoId, status:'pending', created_at:new Date().toISOString() }, { onConflict:'uid,friend_uid' });
+  await supabase.from('notificacoes').insert({ to_uid:amigoId, from_uid:user.id, tipo:'pedido_amizade', mensagem:`Pedido de amizade de ${nome || 'um usuário'}`, lida:false, created_at:new Date().toISOString() });
+  alerta('Pedido enviado com sucesso');
+  recarregarSidebar(user.id);
+}
 
-window.adicionarAmigo = async function (amigoId, nomeAmigo = '') {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase.from('friends').upsert([{ uid: user.id, friend_uid: amigoId }, { uid: amigoId, friend_uid: user.id }], { onConflict: 'uid,friend_uid' });
-  await supabase.from('notificacoes').insert({ to_uid: amigoId, from_uid: user.id, tipo: 'amizade', mensagem: 'Pedido de amizade enviado com sucesso' });
-  window.verPerfilDetalhado(amigoId);
-};
+async function aceitarPedido(meuUid, fromUid){
+  await supabase.from('friends').upsert([
+    { uid: fromUid, friend_uid: meuUid, status:'accepted', created_at:new Date().toISOString() },
+    { uid: meuUid, friend_uid: fromUid, status:'accepted', created_at:new Date().toISOString() }
+  ], { onConflict:'uid,friend_uid' });
+  await supabase.from('notificacoes').update({ lida:true }).eq('to_uid', meuUid).eq('from_uid', fromUid).eq('tipo','pedido_amizade');
+  await recarregarSidebar(meuUid);
+}
+async function recusarPedido(meuUid, fromUid){
+  await supabase.from('friends').delete().eq('uid', fromUid).eq('friend_uid', meuUid).eq('status','pending');
+  await supabase.from('notificacoes').update({ lida:true }).eq('to_uid', meuUid).eq('from_uid', fromUid).eq('tipo','pedido_amizade');
+  await recarregarSidebar(meuUid);
+}
 
-window.removerAmigo = async function (amigoId) {
-  if (!confirm('Deseja remover este herói da sua lista?')) return;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  await Promise.all([
-    supabase.from('friends').delete().eq('uid', user.id).eq('friend_uid', amigoId),
-    supabase.from('friends').delete().eq('uid', amigoId).eq('friend_uid', user.id)
-  ]);
-  window.verPerfilDetalhado(amigoId);
-};
-
-const s = document.createElement('style');
-s.textContent = `@keyframes pulse-badge{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}} @keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
-document.head.appendChild(s);
+function alerta(texto){
+  const a = document.createElement('div'); a.className='side-alert'; a.textContent=texto; document.body.appendChild(a); setTimeout(()=>a.remove(),1800);
+}

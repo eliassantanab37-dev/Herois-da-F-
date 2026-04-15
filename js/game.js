@@ -94,9 +94,7 @@ async function atualizarPontosDoUsuario(uid, pontosGanhos) {
         .from('users')
         .update({
             points: novosPontos,
-            lastUpdate: new Date().toISOString(),
-            lastupdate: new Date().toISOString(),
-                    lastupdate: new Date().toISOString()
+            lastUpdate: new Date().toISOString()
         })
         .eq('uid', uid);
 
@@ -176,7 +174,7 @@ async function mostrarRanking() {
         <div style="padding:20px; text-align:center; min-height:100vh; position:relative; z-index:10;">
             <h2 style="color:#d4af37; font-family:'Cinzel'; font-size:2rem; text-shadow:2px 2px 8px #000;">🏆 RANKING DOS HERÓIS</h2>
             <div id="ranking-container" style="margin-top:20px;"><p style="color:#888;">Convocando Guerreiros...</p></div>
-            <button onclick="window.voltarParaBiblia()" class="btn-mission" style="margin-top:30px; width:100%; max-width:700px; display:block; margin-left:auto; margin-right:auto;">VOLTAR À LEITURA</button>
+            <button onclick="window.voltarParaBiblia()" class="btn-mission global-back-btn" style="margin-top:30px; width:100%; max-width:700px; display:block; margin-left:auto; margin-right:auto;">← VOLTAR</button>
         </div>`;
 
     if (_rankingChannel) {
@@ -377,8 +375,8 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
                 .select('concluido')
                 .eq('uid', user.id)
                 .eq('livro', livroChave)
-                .eq('capitulo', capNum)
-                .single();
+                .eq('capitulo', Number(capNum))
+                .maybeSingle();
 
             const jaConcluido = progExistente?.concluido === true;
 
@@ -408,7 +406,7 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
                 await supabase.from('progresso').upsert({
                     uid: user.id,
                     livro: livroChave,
-                    capitulo: capNum,
+                    capitulo: Number(capNum),
                     concluido: true,
                     data: new Date().toISOString()
                 }, { onConflict: 'uid,livro,capitulo' });

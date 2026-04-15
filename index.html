@@ -1,718 +1,183 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="Heróis da Fé - Plataforma gamificada de leitura da Bíblia">
-    <meta name="theme-color" content="#d4af37">
-    <title>Heróis da Fé - Jornada Espiritual Gamificada</title>
-
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4783566653978134"
-        crossorigin="anonymous"></script>
-
-    <link rel="manifest" href="/manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Heróis da Fé">
-    <link rel="apple-touch-icon" href="/imagens/icon-192.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/imagens/icon-152.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/imagens/icon-192.png">
-    <meta name="msapplication-TileColor" content="#0a0a0a">
-    <meta name="msapplication-TileImage" content="/imagens/icon-144.png">
-    <meta name="mobile-web-app-capable" content="yes">
-
-    <meta property="og:title" content="Heróis da Fé">
-    <meta property="og:description" content="Leia a Bíblia, ganhe pontos e suba no ranking!">
-    <meta property="og:image" content="https://www.heroisdafe.app.br/imagens/icon-512.png">
-    <meta property="og:url" content="https://www.heroisdafe.app.br/">
-    <meta property="og:type" content="website">
-
-    <link rel="icon" type="image/png" sizes="32x32" href="/imagens/icon-96.png">
-    <link rel="shortcut icon" href="/imagens/icon-96.png">
-
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-
-    <link rel="stylesheet" href="css/style.css">
-
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
-    <style>
-        .top-nav { z-index: 900 !important; }
-        .side-menu { z-index: 1000 !important; }
-        #perfil-detalhado,
-        #crop-overlay,
-        .alerta-leitura,
-        .vitoria-popup,
-        .overlay-erro,
-        .chat-window { z-index: 9999 !important; }
-
-        .auth-field-tip {
-            display: block;
-            margin: -8px 0 10px 4px;
-            color: #cdbf8a;
-            font-size: 0.74rem;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .auth-action-row {
-            display: flex;
-            gap: 12px;
-            margin-top: 14px;
-            width: 100%;
-        }
-
-        .auth-action-row.secondary {
-            margin-top: 12px;
-        }
-
-        .auth-special-btn,
-        .btn-mission,
-        .compact-mission-btn {
-            position: relative;
-            overflow: hidden;
-            isolation: isolate;
-            border-radius: 16px;
-            padding: 14px 18px;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 700;
-            font-size: 0.95rem;
-            letter-spacing: 0.3px;
-            cursor: pointer;
-            transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease, filter 0.28s ease;
-            border: 1px solid rgba(255,255,255,0.18);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .auth-special-btn:hover,
-        .btn-mission:hover,
-        .compact-mission-btn:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.04);
-        }
-
-        .auth-special-btn:active,
-        .btn-mission:active,
-        .compact-mission-btn:active {
-            transform: translateY(0);
-        }
-
-        .auth-special-btn::before,
-        .btn-mission::before,
-        .compact-mission-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -72%;
-            width: 42%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.62), transparent);
-            transform: skewX(-24deg);
-            animation: shineToRight 2.8s linear infinite;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .auth-special-btn::after,
-        .btn-mission::after,
-        .compact-mission-btn::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent 45%, rgba(255,255,255,0.06));
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .auth-special-btn > *,
-        .btn-mission > *,
-        .compact-mission-btn > * {
-            position: relative;
-            z-index: 2;
-        }
-
-        .gold-shine {
-            color: #140f00;
-            background:
-                linear-gradient(135deg, rgba(110,79,6,0.92), rgba(212,175,55,0.78) 34%, rgba(255,236,154,0.95) 50%, rgba(212,175,55,0.78) 66%, rgba(110,79,6,0.92));
-            box-shadow:
-                0 12px 30px rgba(212,175,55,0.32),
-                inset 0 1px 0 rgba(255,255,255,0.42),
-                inset 0 -10px 22px rgba(0,0,0,0.08);
-            text-shadow: 0 1px 0 rgba(255,255,255,0.28);
-        }
-
-        .emerald-glass {
-            color: #f4fffb;
-            background:
-                linear-gradient(135deg, rgba(9,104,76,0.80), rgba(27,180,126,0.66) 45%, rgba(61,228,173,0.58));
-            box-shadow:
-                0 12px 28px rgba(16, 170, 120, 0.24),
-                inset 0 1px 0 rgba(255,255,255,0.24),
-                inset 0 -10px 20px rgba(0,0,0,0.08);
-        }
-
-        .gray-glass {
-            color: #ffffff;
-            background:
-                linear-gradient(135deg, rgba(98,98,108,0.42), rgba(155,155,165,0.22) 45%, rgba(210,210,220,0.10));
-            border: 1px solid rgba(255,255,255,0.22);
-            box-shadow:
-                0 10px 26px rgba(0, 0, 0, 0.22),
-                inset 0 1px 0 rgba(255,255,255,0.20),
-                inset 0 -8px 16px rgba(0,0,0,0.08);
-        }
-
-        .compact-mission-btn {
-            width: min(100%, 250px);
-            align-self: center;
-            margin: 14px auto 0;
-            display: block;
-        }
-
-        #btn-entrar {
-            font-size: 0.98rem;
-            letter-spacing: 2.4px;
-            min-height: 70px;
-        }
-
-        #btn-recuperar-senha,
-        #btn-instalar-app-login,
-        #btn-compartilhar-app,
-        #btn-resetar-senha,
-        #btn-cancelar-reset {
-            min-height: 58px;
-        }
-
-        #btn-instalar-app-login[style*="display:none"] {
-            display: none !important;
-        }
-
-        .sidebar-ad-wrap {
-            margin: 25px 0;
-        }
-
-        .sidebar-ad-card {
-            width: 100%;
-            max-width: 300px;
-            min-height: 250px;
-            margin: 0 auto;
-            border-radius: 16px;
-            overflow: hidden;
-            background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-            border: 1px solid rgba(212,175,55,0.22);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 30px rgba(0,0,0,0.25);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-        }
-
-        .sidebar-ad-card .adsbygoogle {
-            width: 300px !important;
-            height: 250px !important;
-            display: block !important;
-        }
-
-        @keyframes shineToRight {
-            0% { left: -72%; }
-            100% { left: 138%; }
-        }
-
-        @media (max-width: 640px) {
-            .auth-action-row { flex-direction: column; }
-            .compact-mission-btn { width: 100%; }
-            #btn-entrar { min-height: 64px; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Heróis da Fé - Plataforma gamificada de leitura da Bíblia">
+  <meta name="theme-color" content="#d4af37">
+  <title>Heróis da Fé - Jornada Espiritual Gamificada</title>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4783566653978134" crossorigin="anonymous"></script>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="/imagens/icon-96.png">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
-
 <body>
-
-    <aside id="side-menu" class="side-menu" role="navigation" aria-label="Menu lateral" style="display: none;">
-        <button id="close-menu" class="close-btn" aria-label="Fechar menu">×</button>
-
-        <section class="profile-section" aria-label="Perfil do usuário">
-            <div class="profile-pic" id="user-profile-pic" style="cursor: pointer; position: relative;">👤</div>
-            <h2 id="user-name-display" style="margin: 10px 0 3px 0;">Carregando...</h2>
-            <p id="user-points-display" style="margin: 0 0 8px 0; color: #d4af37; font-weight: bold;">0 pts</p>
-
-            <div style="width:100%; max-width:160px; margin:0 auto;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <span style="color:#888; font-size:0.65rem; text-transform:uppercase; letter-spacing:1px;">
-                        Nível <strong id="nivel-numero" style="color:#d4af37;">1</strong>
-                    </span>
-                    <span id="exp-texto" style="color:#d4af37; font-size:0.65rem; font-weight:bold;">0%</span>
-                </div>
-                <div style="background:rgba(255,255,255,0.08); border-radius:6px; height:7px; overflow:hidden; border:1px solid #333;">
-                    <div id="exp-bar-fill" style="height:100%; width:0%;
-                        background:linear-gradient(90deg,#d4af37,#ffdf00); border-radius:6px;
-                        transition:width 0.6s ease; box-shadow:0 0 6px rgba(212,175,55,0.5);">
-                    </div>
-                </div>
-                <div style="color:#555; font-size:0.6rem; text-align:center; margin-top:3px;">
-                    EXP para próximo nível
-                </div>
-            </div>
-        </section>
-
-        <section class="sidebar-ad-wrap">
-            <h3 style="font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 12px 0;">
-                Publicidade
-            </h3>
-
-            <div class="sidebar-ad-card">
-                <ins class="adsbygoogle"
-                    style="display:block"
-                    data-ad-client="ca-pub-4783566653978134"
-                    data-ad-slot="3940373913"
-                    data-ad-format="auto"
-                    data-full-width-responsive="true"></ins>
-            </div>
-
-            <script>
-                (adsbygoogle = window.adsbygoogle || []).push({});
-            </script>
-        </section>
-
-        <hr style="border: 0; border-top: 1px solid #222; margin: 15px 0;">
-
-        <section style="margin-bottom: 12px;">
-            <h3 style="font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 10px 0;"></h3>
-            <div style="position: relative;">
-                <input
-                    type="text"
-                    id="sidebar-search-input"
-                    placeholder="Buscar amigo"
-                    autocomplete="off"
-                    style="
-                        width: 100%; box-sizing: border-box;
-                        padding: 9px 14px 9px 36px;
-                        background: #1a1a1a; border: 1px solid #333;
-                        border-radius: 20px; color: #f1e7d0;
-                        font-size: 0.82rem; outline: none;
-                        transition: border 0.2s;
-                    "
-                    onfocus="this.style.borderColor='#d4af37'"
-                    onblur="this.style.borderColor='#333'"
-                >
-                <span style="position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:0.85rem; pointer-events:none;">🔍</span>
-            </div>
-            <div id="sidebar-search-results"></div>
-        </section>
-
-        <hr style="border: 0; border-top: 1px solid #222; margin: 15px 0;">
-
-        <section class="friends-container">
-            <h3 style="font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 10px 0;"></h3>
-            <div id="lista-amigos-sidebar" class="scroll-area">
-                <p style="color: #444; font-size: 0.7rem; text-align: center; margin-top: 20px;">Procurando heróis...</p>
-            </div>
-        </section>
-
-        <div class="sidebar-action-row" style="display:flex; gap:10px; margin-top:18px;">
-            <button id="btn-perfil-menu" class="auth-special-btn gold-shine" style="min-height:48px; padding:12px 14px;">PERFIL</button>
-            <button id="btn-sair-menu" class="auth-special-btn" style="min-height:48px; padding:12px 14px; color:#fff; background:linear-gradient(135deg, rgba(180,18,18,0.86), rgba(255,88,88,0.72)); border:1px solid rgba(255,130,130,0.35);">SAIR DO JOGO</button>
+  <aside id="side-menu" class="side-menu" style="display:none;">
+    <button id="close-menu" class="close-btn">×</button>
+    <section class="profile-section">
+      <div class="sidebar-user-top">
+        <div id="user-profile-pic" class="profile-pic">👤</div>
+        <div class="sidebar-user-info">
+          <div id="user-name-display">Carregando...</div>
+          <div id="user-points-display">0 pts</div>
         </div>
-    </aside>
-
-    <header class="top-nav" style="display: none;">
-        <button id="open-menu" class="menu-icon">MENU</button>
-        <nav class="nav-buttons" style="flex: 1; display: flex; justify-content: center;">
-            <button id="nav-ranking">🏆 RANKING</button>
-            <button id="nav-biblia">📖 BÍBLIA</button>
-        </nav>
-        <div id="user-header-info" style="margin-left: auto; margin-right: 15px;"></div>
-        <div class="logo-text">HERÓIS DA FÉ</div>
-    </header>
-
-    <main id="main-content">
-        <section id="auth-container" class="auth-card">
-            <div class="auth-header" style="margin-bottom: 30px; text-align: center;">
-                <span class="auth-logo" style="font-family: 'Cinzel', serif; color: #d4af37; font-size: 1.5rem; font-weight: bold;">⚜️ HERÓIS DA FÉ</span>
-            </div>
-
-            <div class="auth-tabs">
-                <button id="tab-entrar" class="tab-btn active">ENTRAR</button>
-                <button id="tab-cadastrar" class="tab-btn">CADASTRAR</button>
-            </div>
-
-            <form id="form-entrar" class="auth-form">
-                <input type="email" id="login-email" placeholder="Seu E-mail" required>
-                <input type="password" id="login-senha" placeholder="Sua Senha" required>
-                <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR NO JOGO</button>
-
-                <div class="auth-action-row secondary">
-                    <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">
-                        Recuperar Senha
-                    </button>
-                </div>
-
-                <div class="auth-action-row">
-                    <button type="button" id="btn-instalar-app-login" class="auth-special-btn gold-shine" style="display:none;">
-                        📲 Download do App
-                    </button>
-                    <button type="button" id="btn-compartilhar-app" class="auth-special-btn emerald-glass">
-                        ✨ Compartilhar App
-                    </button>
-                </div>
-            </form>
-
-            <form id="form-cadastrar" class="auth-form" style="display: none;">
-                <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12">
-                <small class="auth-field-tip">Máximo de 12 caracteres</small>
-
-                <input type="email" id="reg-email" placeholder="E-mail" required>
-
-                <input type="password" id="reg-senha" placeholder="Senha" required minlength="8">
-                <small class="auth-field-tip">Mínimo de 8 dígitos</small>
-
-                <input type="text" id="reg-data-nascimento" placeholder="dd/mm/aaaa" required inputmode="numeric" maxlength="10" autocomplete="bday">
-
-                <button type="button" id="btn-registrar" class="btn-mission gold-shine compact-mission-btn">INICIAR JORNADA</button>
-            </form>
-
-            <div id="reset-password-box" class="auth-form" style="display: none;">
-                <input type="password" id="reset-nova-senha" placeholder="Nova senha" minlength="8">
-                <small class="auth-field-tip">Mínimo de 8 dígitos</small>
-
-                <input type="password" id="reset-confirmar-senha" placeholder="Confirmar nova senha" minlength="8">
-
-                <div id="reset-password-message" class="auth-field-tip" style="margin-top: 8px; margin-bottom: 12px;">
-                    Digite sua nova senha para concluir.
-                </div>
-
-                <div class="auth-action-row">
-                    <button type="button" id="btn-resetar-senha" class="auth-special-btn gold-shine">
-                        SALVAR NOVA SENHA
-                    </button>
-                </div>
-
-                <div class="auth-action-row secondary">
-                    <button type="button" id="btn-cancelar-reset" class="auth-special-btn gray-glass">
-                        Cancelar
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <section id="reading-view" class="reading-container" style="display: none;">
-            <div id="bible-text"></div>
-        </section>
-
-        <section id="ranking-container" style="display: none;"></section>
-    </main>
-
-    <input type="file" id="foto-input" accept="image/*" style="display: none;" data-update-mode="false">
-
-    <script type="module" src="js/config.js"></script>
-    <script type="module" src="js/auth.js"></script>
-    <script type="module" src="js/reset-password.js"></script>
-    <script type="module" src="js/bible.js"></script>
-    <script type="module" src="js/game.js"></script>
-    <script type="module" src="js/ui.js"></script>
-    <script type="module" src="js/chat.js"></script>
-    <script type="module" src="js/social.js"></script>
-    <script type="module" src="js/badges.js"></script>
-    <script type="module" src="js/stats.js"></script>
-    <script type="module" src="js/challenges.js"></script>
-
-    <script type="module">
-        import { supabase } from './js/config.js';
-        import { atualizarBarraExpMenu } from './js/badges.js';
-        import { iniciarListenerUsuario, pararListenerUsuario } from './js/auth.js';
-        import { iniciarSocial } from './js/social.js';
-        import { iniciarMonitorChat } from './js/chat.js';
-
-        const header = document.querySelector('.top-nav');
-        const sidebar = document.getElementById('side-menu');
-        const authContainer = document.getElementById('auth-container');
-        const readingView = document.getElementById('reading-view');
-        const pointsEl = document.getElementById('user-points-display');
-        const nivelNum = document.getElementById('nivel-numero');
-        const expTexto = document.getElementById('exp-texto');
-        const expBar = document.getElementById('exp-bar-fill');
-
-        let usuarioInicializado = null;
-        let _realtimeMenuChannel = null;
-
-        function mostrarTelaLogin() {
-            if (header) header.style.display = 'none';
-            if (sidebar) sidebar.style.display = 'none';
-            if (authContainer) authContainer.style.display = 'block';
-            if (readingView) readingView.style.display = 'none';
-        }
-
-        function mostrarJogo() {
-            if (header) header.style.display = 'flex';
-            if (sidebar) sidebar.style.display = 'block';
-            if (authContainer) authContainer.style.display = 'none';
-        }
-
-        function aplicarResumoMenu(userData) {
-            if (!userData) return;
-            if (pointsEl) pointsEl.textContent = `${userData.points || 0} pts`;
-            if (nivelNum) nivelNum.textContent = `${userData.nivel || 1}`;
-            if (expTexto) expTexto.textContent = `${userData.expAtual || 0}%`;
-            if (expBar) expBar.style.width = `${userData.expAtual || 0}%`;
-        }
-
-        async function _atualizarMenuUsuario(uid) {
-            try {
-                const { data: userData } = await supabase
-                    .from('users')
-                    .select('points, nivel, expAtual')
-                    .eq('uid', uid)
-                    .single();
-
-                aplicarResumoMenu(userData);
-
-                const { data: progData } = await supabase
-                    .from('progresso')
-                    .select('concluido')
-                    .eq('uid', uid)
-                    .eq('concluido', true);
-
-                const totalCaps = progData?.length || 0;
-                atualizarBarraExpMenu(totalCaps);
-            } catch (e) {
-                console.error('[index] Erro ao carregar EXP/pontos:', e);
-            }
-        }
-
-        async function inicializarUsuario(user) {
-            if (usuarioInicializado === user.id) return;
-            usuarioInicializado = user.id;
-
-            mostrarJogo();
-
-            try { iniciarListenerUsuario(user); } catch (e) { console.error('[index] iniciarListenerUsuario:', e); }
-            try { iniciarSocial(user); } catch (e) { console.error('[index] iniciarSocial:', e); }
-            try { iniciarMonitorChat(user); } catch (e) { console.error('[index] iniciarMonitorChat:', e); }
-
-            await _atualizarMenuUsuario(user.id);
-
-            if (_realtimeMenuChannel) {
-                supabase.removeChannel(_realtimeMenuChannel);
-                _realtimeMenuChannel = null;
-            }
-
-            _realtimeMenuChannel = supabase
-                .channel('menu-usuario-' + user.id)
-                .on('postgres_changes', {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'users',
-                    filter: `uid=eq.${user.id}`
-                }, (payload) => {
-                    aplicarResumoMenu(payload.new);
-                })
-                .subscribe();
-        }
-
-
-        const { data: sessData } = await supabase.auth.getSession();
-        if (sessData?.session?.user) {
-            await inicializarUsuario(sessData.session.user);
-        } else {
-            mostrarTelaLogin();
-        }
-
-        supabase.auth.onAuthStateChange(async (_event, session) => {
-            const user = session?.user ?? null;
-
-            if (user) {
-                await inicializarUsuario(user);
-            } else {
-                usuarioInicializado = null;
-                if (_realtimeMenuChannel) {
-                    supabase.removeChannel(_realtimeMenuChannel);
-                    _realtimeMenuChannel = null;
-                }
-                try { pararListenerUsuario(); } catch (_) {}
-                mostrarTelaLogin();
-            }
-        });
-
-        window.addEventListener('exp_atualizada', (e) => {
-            const totalCaps = e.detail?.totalCaps;
-            if (typeof totalCaps === 'number') {
-                atualizarBarraExpMenu(totalCaps);
-            }
-        });
-
-        function esperarFuncao(nome, tentativas = 40) {
-            return new Promise((resolve) => {
-                const checar = (n) => {
-                    if (typeof window[nome] === 'function') return resolve(window[nome]);
-                    if (n <= 0) {
-                        console.warn(`[index] Função ${nome} não encontrada`);
-                        return resolve(null);
-                    }
-                    setTimeout(() => checar(n - 1), 100);
-                };
-                checar(tentativas);
-            });
-        }
-
-        esperarFuncao('mostrarBadges').then(fn => {
-            const btn = document.getElementById('btn-badges');
-            if (btn && fn) btn.addEventListener('click', fn);
-        });
-
-        esperarFuncao('mostrarEstatisticas').then(fn => {
-            const btn = document.getElementById('btn-estatisticas');
-            if (btn && fn) btn.addEventListener('click', fn);
-        });
-
-        esperarFuncao('mostrarDesafios').then(fn => {
-            const btn = document.getElementById('btn-desafios');
-            if (btn && fn) btn.addEventListener('click', fn);
-        });
-
-        window.voltarParaBiblia = function () {
-            document.body.style.backgroundImage = '';
-            document.body.style.backgroundSize = '';
-            document.body.style.backgroundAttachment = '';
-            document.body.classList.remove('modo-ranking-ativo');
-            if (window.carregarListaLivros) window.carregarListaLivros();
-        };
-
-        const params = new URLSearchParams(window.location.search);
-        const acao = params.get('acao');
-
-        if (acao) {
-            const verificar = setInterval(() => {
-                const logado = document.getElementById('reading-view')?.style.display === 'block';
-                if (!logado) return;
-
-                clearInterval(verificar);
-
-                if (acao === 'biblia' && window.carregarListaLivros) {
-                    window.carregarListaLivros();
-                }
-
-                if (acao === 'ranking') {
-                    document.getElementById('nav-ranking')?.click();
-                }
-
-                window.history.replaceState({}, '', '/');
-            }, 500);
-        }
-    </script>
-
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then((reg) => {
-                        console.log('[PWA] SW registrado:', reg.scope);
-
-                        reg.addEventListener('updatefound', () => {
-                            const novoSW = reg.installing;
-
-                            novoSW.addEventListener('statechange', () => {
-                                if (novoSW.state === 'installed' && navigator.serviceWorker.controller) {
-                                    mostrarBannerAtualizacao(novoSW);
-                                }
-                            });
-                        });
-                    })
-                    .catch((err) => console.warn('[PWA] Erro ao registrar SW:', err));
-
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    window.location.reload();
-                });
-            });
-        }
-
-        function mostrarBannerAtualizacao(sw) {
-            const banner = document.createElement('div');
-            banner.style.cssText = `
-                position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-                background: #d4af37; color: #000; padding: 14px 24px;
-                border-radius: 30px; font-weight: bold; font-family: 'Poppins', sans-serif;
-                font-size: 0.88rem; box-shadow: 0 4px 20px rgba(212,175,55,0.5);
-                z-index: 99999; display: flex; align-items: center; gap: 12px;
-                cursor: pointer; white-space: nowrap;
-            `;
-            banner.innerHTML = `🔄 Nova versão disponível! <span style="text-decoration:underline;">Atualizar agora</span>`;
-            banner.onclick = () => {
-                sw.postMessage('SKIP_WAITING');
-                banner.remove();
-            };
-            document.body.appendChild(banner);
-            setTimeout(() => banner.remove(), 15000);
-        }
-
-        let promptInstalacao = null;
-
-        function atualizarBotaoInstalacao() {
-            const btnInstalar = document.getElementById('btn-instalar-app-login');
-            if (!btnInstalar) return;
-            btnInstalar.style.display = promptInstalacao ? 'inline-flex' : 'none';
-        }
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            promptInstalacao = e;
-            atualizarBotaoInstalacao();
-        });
-
-        document.addEventListener('click', async (event) => {
-            const btnInstalar = event.target.closest('#btn-instalar-app-login');
-            if (btnInstalar && promptInstalacao) {
-                promptInstalacao.prompt();
-                await promptInstalacao.userChoice;
-                promptInstalacao = null;
-                atualizarBotaoInstalacao();
-            }
-
-            const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
-            if (btnCompartilhar) {
-                const shareData = {
-                    title: 'Heróis da Fé',
-                    text: 'Baixe e compartilhe o app Heróis da Fé.',
-                    url: window.location.origin
-                };
-
-                try {
-                    if (navigator.share) {
-                        await navigator.share(shareData);
-                    } else {
-                        const texto = encodeURIComponent(`${shareData.text} ${shareData.url}`);
-                        window.open(`https://wa.me/?text=${texto}`, '_blank');
-                    }
-                } catch (err) {
-                    console.warn('[PWA] Compartilhamento cancelado ou indisponível:', err);
-                }
-            }
-        });
-
-        window.addEventListener('appinstalled', () => {
-            promptInstalacao = null;
-            atualizarBotaoInstalacao();
-            console.log('[PWA] App instalado com sucesso!');
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const campoData = document.getElementById('reg-data-nascimento');
-            if (campoData) {
-                campoData.addEventListener('input', (e) => {
-                    let valor = e.target.value.replace(/\D/g, '').slice(0, 8);
-                    if (valor.length > 4) {
-                        valor = `${valor.slice(0,2)}/${valor.slice(2,4)}/${valor.slice(4)}`;
-                    } else if (valor.length > 2) {
-                        valor = `${valor.slice(0,2)}/${valor.slice(2)}`;
-                    }
-                    e.target.value = valor;
-                });
-            }
-        });
-    </script>
-
+      </div>
+      <div class="exp-card">
+        <div class="exp-head"><span>Nível <strong id="nivel-numero">1</strong></span><span id="exp-texto">0%</span></div>
+        <div class="exp-track"><div id="exp-bar-fill" class="exp-fill"></div></div>
+        <div class="exp-sub">EXP para próximo nível</div>
+      </div>
+      <div class="sidebar-actions-two">
+        <button id="btn-perfil-menu" class="glass-btn gold">PERFIL</button>
+        <button id="btn-sair-menu" class="glass-btn red">SAIR DO JOGO</button>
+      </div>
+    </section>
+
+    <section class="sidebar-ad-wrap">
+      <h3 class="sidebar-title">PUBLICIDADE</h3>
+      <div class="sidebar-ad-card">
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4783566653978134" data-ad-slot="3940373913" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      </div>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </section>
+
+    <section class="friend-search-wrap">
+      <div class="search-wrap"><span>🔎</span><input type="text" id="sidebar-search-input" placeholder="Buscar amigo" autocomplete="off"></div>
+      <div id="sidebar-search-results"></div>
+    </section>
+
+    <section class="friends-container">
+      <div id="lista-amigos-sidebar" class="scroll-area"><div class="friend-empty">Carregando amigos...</div></div>
+    </section>
+  </aside>
+
+  <header class="top-nav" style="display:none;">
+    <button id="open-menu" class="menu-icon">MENU</button>
+    <nav class="nav-buttons"><button id="nav-ranking">🏆 RANKING</button><button id="nav-biblia">📖 BÍBLIA</button></nav>
+    <div id="user-header-info"></div>
+    <div class="logo-text">HERÓIS DA FÉ</div>
+  </header>
+
+  <main id="main-content">
+    <section id="auth-container" class="auth-card">
+      <div class="auth-header"><span class="auth-logo">⚜️ HERÓIS DA FÉ</span></div>
+      <div class="auth-tabs"><button id="tab-entrar" class="tab-btn active">ENTRAR</button><button id="tab-cadastrar" class="tab-btn">CADASTRAR</button></div>
+      <form id="form-entrar" class="auth-form">
+        <input type="email" id="login-email" placeholder="Seu E-mail" required>
+        <input type="password" id="login-senha" placeholder="Sua Senha" required>
+        <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR NO JOGO</button>
+        <div class="auth-action-row secondary"><button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button></div>
+        <div class="auth-action-row"><button type="button" id="btn-instalar-app-login" class="auth-special-btn gold-shine" style="display:none;">📲 Download do App</button><button type="button" id="btn-compartilhar-app" class="auth-special-btn emerald-glass">✨ Compartilhar App</button></div>
+      </form>
+      <form id="form-cadastrar" class="auth-form" style="display:none;">
+        <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12"><small class="auth-field-tip">Máximo de 12 caracteres</small>
+        <input type="email" id="reg-email" placeholder="E-mail" required>
+        <input type="password" id="reg-senha" placeholder="Senha" required minlength="8"><small class="auth-field-tip">Mínimo de 8 dígitos</small>
+        <input type="text" id="reg-data-nascimento" placeholder="dd/mm/aaaa" required inputmode="numeric" maxlength="10" autocomplete="bday">
+        <button type="button" id="btn-registrar" class="btn-mission gold-shine compact-mission-btn">INICIAR JORNADA</button>
+      </form>
+      <div id="reset-password-box" class="auth-form" style="display:none;">
+        <input type="password" id="reset-nova-senha" placeholder="Nova senha" minlength="8"><small class="auth-field-tip">Mínimo de 8 dígitos</small>
+        <input type="password" id="reset-confirmar-senha" placeholder="Confirmar nova senha" minlength="8">
+        <div id="reset-password-message" class="auth-field-tip">Digite sua nova senha para concluir.</div>
+        <div class="auth-action-row"><button type="button" id="btn-resetar-senha" class="auth-special-btn gold-shine">SALVAR NOVA SENHA</button></div>
+        <div class="auth-action-row secondary"><button type="button" id="btn-cancelar-reset" class="auth-special-btn gray-glass">Cancelar</button></div>
+      </div>
+    </section>
+
+    <section id="reading-view" class="reading-container" style="display:none;"><div id="bible-text"></div></section>
+    <section id="ranking-container" style="display:none;"></section>
+  </main>
+
+  <input type="file" id="foto-input" accept="image/*" style="display:none;">
+
+  <script type="module" src="js/config.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/reset-password.js"></script>
+  <script type="module" src="js/bible.js"></script>
+  <script type="module" src="js/game.js"></script>
+  <script type="module" src="js/ui.js"></script>
+  <script type="module" src="js/chat.js"></script>
+  <script type="module" src="js/social.js"></script>
+  <script type="module" src="js/badges.js"></script>
+  <script type="module" src="js/stats.js"></script>
+  <script type="module" src="js/challenges.js"></script>
+
+  <script type="module">
+    import { supabase } from './js/config.js';
+    import { atualizarBarraExpMenu } from './js/badges.js';
+    import { iniciarListenerUsuario, pararListenerUsuario } from './js/auth.js';
+    import { iniciarSocial } from './js/social.js';
+    import { iniciarMonitorChat } from './js/chat.js';
+
+    const header = document.querySelector('.top-nav');
+    const sidebar = document.getElementById('side-menu');
+    const authContainer = document.getElementById('auth-container');
+    const readingView = document.getElementById('reading-view');
+    const pointsEl = document.getElementById('user-points-display');
+    const nivelNum = document.getElementById('nivel-numero');
+    const expTexto = document.getElementById('exp-texto');
+    const expBar = document.getElementById('exp-bar-fill');
+
+    let currentUid = null;
+    let realtimeMenuChannel = null;
+    window._paginaAtualJogo = 'biblia-home';
+
+    function mostrarTelaLogin(){ if (header) header.style.display='none'; if (sidebar) sidebar.style.display='none'; if (authContainer) authContainer.style.display='block'; if (readingView) readingView.style.display='none'; }
+    function mostrarJogo(){ if (header) header.style.display='flex'; if (sidebar) sidebar.style.display='block'; if (authContainer) authContainer.style.display='none'; if (readingView) readingView.style.display='block'; }
+    function aplicarResumoMenu(userData){ if (!userData) return; if (pointsEl) pointsEl.textContent = `${userData.points || 0} pts`; if (nivelNum) nivelNum.textContent = `${userData.nivel || 1}`; const ev = userData.expAtual ?? userData.expatual ?? 0; if (expTexto) expTexto.textContent = `${ev}%`; if (expBar) expBar.style.width = `${ev}%`; }
+
+    async function atualizarMenuUsuario(uid){
+      const { data: userData } = await supabase.from('users').select('*').eq('uid',uid).single();
+      aplicarResumoMenu(userData);
+      const { data: progData } = await supabase.from('progresso').select('concluido').eq('uid',uid).eq('concluido',true);
+      atualizarBarraExpMenu(progData?.length || 0);
+    }
+
+    async function inicializarUsuario(user){
+      currentUid = user.id;
+      mostrarJogo();
+      await iniciarListenerUsuario(user);
+      iniciarSocial(user);
+      iniciarMonitorChat(user);
+      await atualizarMenuUsuario(user.id);
+      try { window.carregarListaLivros?.(); } catch(e) { console.error(e); }
+      if (realtimeMenuChannel) { supabase.removeChannel(realtimeMenuChannel); }
+      realtimeMenuChannel = supabase.channel('menu-user-'+user.id).on('postgres_changes',{event:'*',schema:'public',table:'users',filter:`uid=eq.${user.id}`},(payload)=>aplicarResumoMenu(payload.new)).subscribe();
+      history.replaceState({page:'jogo'}, '');
+    }
+
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+      const user = session?.user ?? null;
+      if (user) await inicializarUsuario(user); else { currentUid = null; if (realtimeMenuChannel) supabase.removeChannel(realtimeMenuChannel); try { pararListenerUsuario(); } catch {} mostrarTelaLogin(); }
+    });
+
+    const { data:{ session } } = await supabase.auth.getSession();
+    if (session?.user) await inicializarUsuario(session.user); else mostrarTelaLogin();
+
+    window.addEventListener('exp_atualizada', (e) => { const totalCaps = e.detail?.totalCaps; if (typeof totalCaps === 'number') atualizarBarraExpMenu(totalCaps); });
+    window.voltarParaBiblia = function(){ document.getElementById('ranking-container').style.display='none'; document.getElementById('reading-view').style.display='block'; window._paginaAtualJogo='biblia-home'; window.carregarListaLivros?.(); };
+
+    let promptInstalacao = null;
+    function atualizarBotaoInstalar(){ const btn = document.getElementById('btn-instalar-app-login'); if (btn) btn.style.display = promptInstalacao ? 'inline-flex' : 'none'; }
+    window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); promptInstalacao = event; atualizarBotaoInstalar(); });
+    window.addEventListener('appinstalled', ()=>{ promptInstalacao = null; atualizarBotaoInstalar(); });
+    document.addEventListener('click', async (event) => {
+      const btnInstalar = event.target.closest('#btn-instalar-app-login');
+      if (btnInstalar && promptInstalacao) { promptInstalacao.prompt(); await promptInstalacao.userChoice; promptInstalacao = null; atualizarBotaoInstalar(); }
+      const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
+      if (btnCompartilhar) {
+        const payload = { title:'Heróis da Fé', text:'Venha jogar Heróis da Fé comigo!', url: window.location.href };
+        if (navigator.share) { try { await navigator.share(payload); } catch {} }
+        else { await navigator.clipboard.writeText(window.location.href); alert('Link copiado!'); }
+      }
+    });
+
+    if ('serviceWorker' in navigator) {
+      try { const reg = await navigator.serviceWorker.register('/sw.js'); if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING'); } catch(e){ console.warn(e); }
+    }
+  </script>
 </body>
 </html>
