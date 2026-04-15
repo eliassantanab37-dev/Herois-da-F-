@@ -12,6 +12,67 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    .auth-action-row.install-share-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      align-items:stretch;
+    }
+    .auth-action-row.install-share-row .auth-special-btn{
+      width:100%;
+      min-height:56px;
+      border-radius:20px;
+      font-weight:700;
+      padding:14px 16px;
+    }
+    .auth-form .btn-mission,
+    .auth-form .auth-special-btn,
+    .auth-form input,
+    .auth-tabs .tab-btn{
+      border-radius:20px !important;
+    }
+    .install-gold-glass{
+      color:#170f00;
+      background:linear-gradient(135deg, rgba(103,76,7,0.96), rgba(212,175,55,0.82) 36%, rgba(255,237,164,0.98) 50%, rgba(212,175,55,0.82) 64%, rgba(103,76,7,0.96));
+      box-shadow:0 12px 28px rgba(212,175,55,0.26), inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -10px 20px rgba(92,66,4,0.22);
+      border:1px solid rgba(255,222,124,0.9) !important;
+      position:relative;
+      overflow:hidden;
+    }
+    .install-gold-glass::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:-70%;
+      width:42%;
+      height:100%;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+      transform:skewX(-22deg);
+      animation:shineInstall 2.8s linear infinite;
+    }
+    .install-gold-glass::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg, rgba(255,255,255,0.16), transparent 42%, rgba(255,255,255,0.05));
+      pointer-events:none;
+    }
+    .install-gold-glass > span,
+    .share-compact-glass > span{ position:relative; z-index:2; }
+    .share-compact-glass{
+      background:linear-gradient(135deg, rgba(9,110,80,0.98), rgba(118,226,203,0.92));
+      color:#fff;
+      border:1px solid rgba(180,255,236,0.45) !important;
+      box-shadow:0 10px 22px rgba(27,161,133,0.18), inset 0 1px 0 rgba(255,255,255,0.22);
+    }
+    @keyframes shineInstall{ from{ left:-70%; } to{ left:130%; } }
+    @media (max-width: 520px){
+      .auth-action-row.install-share-row{ grid-template-columns:1fr; }
+    }
+  </style>
+
 </head>
 <body>
   <aside id="side-menu" class="side-menu" style="display:none;">
@@ -69,7 +130,7 @@
         <input type="password" id="login-senha" placeholder="Sua Senha" required>
         <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR NO JOGO</button>
         <div class="auth-action-row secondary"><button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button></div>
-        <div class="auth-action-row"><button type="button" id="btn-instalar-app-login" class="auth-special-btn gold-shine" style="display:none;">📲 Download do App</button><button type="button" id="btn-compartilhar-app" class="auth-special-btn emerald-glass">✨ Compartilhar App</button></div>
+        <div class="auth-action-row install-share-row"><button type="button" id="btn-instalar-app-login" class="auth-special-btn install-gold-glass"><span>📲 Download do App</span></button><button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhar App</span></button></div>
       </form>
       <form id="form-cadastrar" class="auth-form" style="display:none;">
         <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12"><small class="auth-field-tip">Máximo de 12 caracteres</small>
@@ -161,12 +222,33 @@
     window.voltarParaBiblia = function(){ document.getElementById('ranking-container').style.display='none'; document.getElementById('reading-view').style.display='block'; window._paginaAtualJogo='biblia-home'; window.carregarListaLivros?.(); };
 
     let promptInstalacao = null;
-    function atualizarBotaoInstalar(){ const btn = document.getElementById('btn-instalar-app-login'); if (btn) btn.style.display = promptInstalacao ? 'inline-flex' : 'none'; }
-    window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); promptInstalacao = event; atualizarBotaoInstalar(); });
+    function atualizarBotaoInstalar(){
+      const btn = document.getElementById('btn-instalar-app-login');
+      if (!btn) return;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.title = promptInstalacao
+        ? 'Instalar app'
+        : 'Abrir instruções de instalação';
+    }
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      promptInstalacao = event;
+      atualizarBotaoInstalar();
+    });
     window.addEventListener('appinstalled', ()=>{ promptInstalacao = null; atualizarBotaoInstalar(); });
     document.addEventListener('click', async (event) => {
       const btnInstalar = event.target.closest('#btn-instalar-app-login');
-      if (btnInstalar && promptInstalacao) { promptInstalacao.prompt(); await promptInstalacao.userChoice; promptInstalacao = null; atualizarBotaoInstalar(); }
+      if (btnInstalar) {
+        if (promptInstalacao) {
+          promptInstalacao.prompt();
+          try { await promptInstalacao.userChoice; } catch {}
+          promptInstalacao = null;
+          atualizarBotaoInstalar();
+        } else {
+          alert('Para instalar: abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.');
+        }
+      }
       const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
       if (btnCompartilhar) {
         const payload = { title:'Heróis da Fé', text:'Venha jogar Heróis da Fé comigo!', url: window.location.href };
@@ -174,6 +256,7 @@
         else { await navigator.clipboard.writeText(window.location.href); alert('Link copiado!'); }
       }
     });
+    atualizarBotaoInstalar();
 
     if ('serviceWorker' in navigator) {
       try { const reg = await navigator.serviceWorker.register('/sw.js'); if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING'); } catch(e){ console.warn(e); }
