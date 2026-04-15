@@ -1,213 +1,714 @@
+// js/game.js
+// ═══════════════════════════════════════════════════════════
+// SISTEMA DE JOGO — RANKING, LEITURA, MISSÕES — Supabase
+// Corrigido:
+// - pontos atualizam users.points e lastUpdate
+// - remove bug do canal auditoria duplicado
+// - evita canais realtime duplicados
+// - ranking continua em tempo real
+// ═══════════════════════════════════════════════════════════
+
 import { supabase } from './config.js';
-import { atualizarBarraExpMenu, atualizarExpAposLeitura, verificarBadges, verificarLivroCompleto } from './badges.js';
+import {
+    verificarBadges,
+    verificarLivroCompleto,
+    atualizarExpAposLeitura,
+    atualizarBarraExpMenu
+} from './badges.js';
 
-const QUIZ_POINTS = 20;
+// ── ESTADO ─────────────────────────────────────────────────
 let processandoResposta = false;
+let rolagemMuitoRapida  = false;
+let ultimaPosicaoScroll = 0;
+let _rankingChannel     = null;
+let _auditoriaChannel   = null;
+let _auditoriaUid       = null;
+let saldoAnterior       = null;
 
-function gerarAvatarPadrao(nome = 'Herói') {
-  const iniciais = nome.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
-  return `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="100%" height="100%" fill="#d4af37"/><text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="46" fill="#111" font-family="Arial">${iniciais}</text></svg>`)}`;
+// ── ESTILOS ────────────────────────────────────────────────
+const style = document.createElement('style');
+style.innerHTML = `
+    @keyframes brilhoOuro {
+        0%   { box-shadow: 0 0 10px #d4af37, inset 0 0 5px #d4af37; border-color: #fff; }
+        50%  { box-shadow: 0 0 30px #ffdf00, 0 0 50px #d4af37, inset 0 0 15px #d4af37; border-color: #d4af37; }
+        100% { box-shadow: 0 0 10px #d4af37, inset 0 0 5px #d4af37; border-color: #fff; }
+    }
+    @keyframes faiscasTexto {
+        0%, 100% { text-shadow: 0 0 8px #fff, 0 0 15px #d4af37; }
+        50%       { text-shadow: 0 0 20px #fff, 0 0 35px #ffdf00, 0 0 50px #ff8c00; }
+    }
+    .vitoria-popup {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+        background: rgba(0,0,0,0.95); color: #d4af37; padding: 40px; border-radius: 20px;
+        border: 4px solid #d4af37; text-align: center; z-index: 10000;
+        font-family: 'Cinzel', serif;
+        animation: popEntrada 0.5s forwards cubic-bezier(0.17,0.89,0.32,1.28), brilhoOuro 2s infinite;
+        backdrop-filter: blur(15px); min-width: 320px;
+    }
+    @keyframes popEntrada { to { transform: translate(-50%, -50%) scale(1); } }
+    .vitoria-popup h2 { margin: 0; font-size: 2.2rem; animation: faiscasTexto 1.5s infinite; color: #fff; }
+    .vitoria-popup p  { font-size: 1.6rem; font-weight: bold; margin: 15px 0; color: #d4af37; text-transform: uppercase; }
+    .leitura-container { position: relative; z-index: 5; background: transparent; border-radius: 15px; border: none; }
+`;
+document.head.appendChild(style);
+
+// ── UTILITÁRIOS ────────────────────────────────────────────
+function gerarAvatarPadrao(nome) {
+    const iniciais = nome ? nome.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) : '??';
+    const cores = ['#d4af37', '#2ecc71', '#4a90e2', '#e74c3c', '#9b59b6', '#f39c12'];
+    const cor = cores[Math.abs((nome || '').charCodeAt(0) || 0) % cores.length];
+    const svg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="200" fill="${cor}"/><text x="100" y="100" font-size="80" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central" font-family="Arial">${iniciais}</text></svg>`;
+    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
 export function calcularNivel(pontos) {
-  if (pontos < 100) return 'Servo Fiel';
-  if (pontos < 500) return 'Levita Louvador';
-  if (pontos < 1000) return 'Soldado de Cristo';
-  if (pontos < 2000) return 'Semeador da Palavra';
-  if (pontos < 3000) return 'Missionário(a)';
-  return 'Herói da Fé';
+    if (pontos < 100)   return 'Servo Fiel';
+    if (pontos < 500)   return 'Levita Louvador';
+    if (pontos < 1000)  return 'Soldado de Cristo';
+    if (pontos < 2000)  return 'Semeador da Palavra';
+    if (pontos < 3000)  return 'Missionário(a)';
+    if (pontos < 4500)  return 'Guarda de Sião';
+    if (pontos < 6000)  return 'Vencedor em Cristo';
+    if (pontos < 8000)  return 'Ungido por Deus';
+    if (pontos < 10500) return 'Fiel Adorador';
+    if (pontos < 13500) return 'Embaixador do Reino';
+    if (pontos < 17000) return 'Apóstolo';
+    if (pontos < 21000) return 'Profeta de Deus';
+    if (pontos < 26000) return 'Guerreiro de Gileade';
+    if (pontos < 32000) return 'Herdeiro do Eterno';
+    return 'Herói da Fé Eterno';
 }
 
-async function atualizarPontosDoUsuario(uid, pontosGanhos, motivo) {
-  const { data: userAtual, error } = await supabase.from('users').select('points').eq('uid', uid).single();
-  if (error) throw error;
-  const novosPontos = (userAtual?.points || 0) + pontosGanhos;
+async function atualizarPontosDoUsuario(uid, pontosGanhos) {
+    const { data: userAtual, error: selectError } = await supabase
+        .from('users')
+        .select('points')
+        .eq('uid', uid)
+        .maybeSingle();
 
-  await supabase.from('users').update({
-    points: novosPontos,
-    lastupdate: new Date().toISOString(),
-    lastUpdate: new Date().toISOString(),
-  }).eq('uid', uid);
+    if (selectError) throw selectError;
 
-  await supabase.from('logs_pontuacao').insert({
-    uid,
-    pontos: pontosGanhos,
-    motivo,
-    created_at: new Date().toISOString(),
-  }).catch(() => {});
+    const novosPontos = (userAtual?.points || 0) + pontosGanhos;
 
-  const pontosEl = document.getElementById('user-points-display');
-  if (pontosEl) pontosEl.textContent = `${novosPontos} pts`;
-  return novosPontos;
+    const { error: updateError } = await supabase
+        .from('users')
+        .update({
+            points: novosPontos,
+            lastUpdate: new Date().toISOString()
+        })
+        .eq('uid', uid);
+
+    if (updateError) throw updateError;
+
+    return novosPontos;
 }
 
-function exibirMensagem(html, bg = 'rgba(8,8,8,.92)', remover = 2200) {
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:100000;background:rgba(0,0,0,.5);backdrop-filter:blur(5px);';
-  overlay.innerHTML = `<div style="max-width:420px;width:92%;padding:26px 24px;border-radius:24px;border:2px solid #d4af37;background:${bg};box-shadow:0 0 30px rgba(212,175,55,.25);text-align:center;font-family:Poppins,sans-serif;color:#fff;">${html}</div>`;
-  document.body.appendChild(overlay);
-  setTimeout(() => overlay.remove(), remover);
+function iniciarAuditoriaPontuacao(uid) {
+    if (!uid) return;
+
+    if (_auditoriaChannel) {
+        supabase.removeChannel(_auditoriaChannel);
+        _auditoriaChannel = null;
+    }
+
+    _auditoriaUid = uid;
+    saldoAnterior = null;
+
+    _auditoriaChannel = supabase
+        .channel('auditoria-' + uid)
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'users',
+                filter: `uid=eq.${uid}`
+            },
+            async (payload) => {
+                const saldoAtual = payload.new?.points || 0;
+
+                if (saldoAnterior !== null && saldoAtual > saldoAnterior) {
+                    const ganho = saldoAtual - saldoAnterior;
+
+                    await supabase.from('logs_pontuacao').insert({
+                        uid,
+                        pontos: ganho,
+                        data: new Date().toLocaleString('pt-BR')
+                    });
+                }
+
+                saldoAnterior = saldoAtual;
+            }
+        )
+        .subscribe();
 }
 
-window.exibirCapitulo = async function exibirCapitulo(chaveLivro, numeroCapitulo) {
-  const container = document.getElementById('bible-text');
-  if (!container) return;
-  const modulo = await import('./bible.js');
-  const livro = modulo.bible[chaveLivro];
-  const capitulo = livro?.capitulos?.[numeroCapitulo];
-  if (!livro || !capitulo) return;
+// ── RANKING ────────────────────────────────────────────────
+const btnRanking = document.getElementById('nav-ranking');
+if (btnRanking) btnRanking.addEventListener('click', mostrarRanking);
 
-  const texto = String(capitulo.texto || '').replace(/\n/g, '<br>');
-  const subtitulo = capitulo.titulo ? `<div style="color:#d7b765;font-style:italic;margin-bottom:22px">${capitulo.titulo}</div>` : '';
+async function mostrarRanking() {
+    const bibleText   = document.getElementById('bible-text');
+    const readingView = document.getElementById('reading-view');
+    if (!bibleText || !readingView) return;
 
-  container.innerHTML = `
-    <div style="max-width:980px;margin:0 auto;padding:18px 14px 42px;">
-      <button type="button" onclick="window.abrirLivro('${chaveLivro}')" class="btn-mission" style="margin-bottom:18px">← Voltar aos Capítulos</button>
-      <h1 style="font-family:Cinzel,serif;color:#d4af37;margin:0 0 8px;font-size:2.2rem">${livro.nome} — Capítulo ${numeroCapitulo}</h1>
-      ${subtitulo}
-      <div id="texto-leitura" class="texto-biblico" style="background:transparent;color:#fff;font-size:1.15rem;line-height:1.95;padding:8px 2px;text-shadow:0 0 10px rgba(0,0,0,.95),2px 2px 4px rgba(0,0,0,1),-2px -2px 4px rgba(0,0,0,1);">
-        ${texto}
-      </div>
-      <div style="text-align:center;margin-top:34px;">
-        <button type="button" onclick="window.iniciarMissao('${chaveLivro}', ${Number(numeroCapitulo)})" class="btn-mission gold-shine" style="padding:15px 28px;font-size:1rem">RESPONDER PERGUNTA</button>
-      </div>
-    </div>`;
-};
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundSize  = '';
+    document.body.style.backgroundAttachment = '';
+    readingView.style.display = 'block';
+    document.body.classList.add('modo-ranking-ativo');
 
-function obterQuiz(capitulo, livroNome, numeroCapitulo) {
-  const pergunta = capitulo.pergunta || capitulo.questao || `Você terminou a leitura com atenção de ${livroNome} capítulo ${numeroCapitulo}?`;
-  const correta = capitulo.respostaCorreta ?? capitulo.resposta ?? capitulo.correta ?? 0;
-  let alternativas = capitulo.alternativas || capitulo.opcoes;
+    bibleText.innerHTML = `
+        <style>
+            .trofeu-container { position:relative; width:45px; height:45px; display:flex; justify-content:center; align-items:center; }
+            .aura-flamejante  { position:absolute; width:100%; height:100%; border-radius:50%; top:0; left:0; animation:aura-pulse 2s infinite; }
+            .aura-ouro   { box-shadow:0 0 15px #d4af37, 0 0 30px #ffff00, inset 0 0 10px rgba(212,175,55,0.5); }
+            .aura-prata  { box-shadow:0 0 15px #c0c0c0, 0 0 30px #e8e8e8, inset 0 0 10px rgba(192,192,192,0.5); }
+            .aura-bronze { box-shadow:0 0 15px #cd7f32, 0 0 30px #ff8c00, inset 0 0 10px rgba(205,127,50,0.5); }
+            @keyframes aura-pulse { 0%,100%{transform:scale(1); opacity:0.8;} 50%{transform:scale(1.2); opacity:1;} }
+            .trofeu-icone { position:relative; z-index:10; font-size:1.5rem; animation:trofeu-float 2s ease-in-out infinite; }
+            @keyframes trofeu-float { 0%,100%{transform:translateY(0px);} 50%{transform:translateY(-5px);} }
+            .nivel-chamas-ouro { color:#000 !important; font-weight:900; text-transform:uppercase; padding:2px 8px; border-radius:4px; display:inline-block; background:linear-gradient(45deg,#d4af37,#f9f295,#ffdf00,#d4af37); background-size:400% 400%; animation:chamasOuroAnim 3s ease infinite; border:1px solid #d4af37; font-size:0.65rem; margin-top:4px; box-shadow:0 0 8px rgba(212,175,55,0.5); }
+            @keyframes chamasOuroAnim { 0%,100%{background-position:0% 50%; box-shadow:0 0 5px #d4af37;} 50%{background-position:100% 50%; box-shadow:0 0 15px #ffdf00;} }
+        </style>
+        <div style="padding:20px; text-align:center; min-height:100vh; position:relative; z-index:10;">
+            <h2 style="color:#d4af37; font-family:'Cinzel'; font-size:2rem; text-shadow:2px 2px 8px #000;">🏆 RANKING DOS HERÓIS</h2>
+            <div id="ranking-container" style="margin-top:20px;"><p style="color:#888;">Convocando Guerreiros...</p></div>
+            <button onclick="window.voltarParaBiblia()" class="btn-mission" style="margin-top:30px; width:100%; max-width:700px; display:block; margin-left:auto; margin-right:auto;">VOLTAR À LEITURA</button>
+        </div>`;
 
-  if (!Array.isArray(alternativas) || alternativas.length < 2) {
-    alternativas = ['Sim, li com atenção', 'Não, quero ler novamente'];
-  }
+    if (_rankingChannel) {
+        supabase.removeChannel(_rankingChannel);
+        _rankingChannel = null;
+    }
 
-  let indiceCorreto = Number(correta);
-  if (!Number.isFinite(indiceCorreto) || indiceCorreto < 0 || indiceCorreto >= alternativas.length) {
-    indiceCorreto = 0;
-  }
+    await _renderizarRanking();
 
-  return { pergunta, alternativas, indiceCorreto };
+    _rankingChannel = supabase
+        .channel('ranking-updates')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, () => {
+            _renderizarRanking();
+        })
+        .subscribe();
 }
-
-window.iniciarMissao = async function iniciarMissao(chaveLivro, capNum) {
-  const modulo = await import('./bible.js');
-  const livro = modulo.bible[chaveLivro];
-  const capitulo = livro?.capitulos?.[capNum];
-  const container = document.getElementById('bible-text');
-  if (!livro || !capitulo || !container) return;
-
-  const quiz = obterQuiz(capitulo, livro.nome, capNum);
-  const botoes = quiz.alternativas.map((alt, idx) => `
-    <button type="button" onclick="window.responderPergunta('${chaveLivro}', ${Number(capNum)}, ${idx === quiz.indiceCorreto})"
-      style="width:100%;text-align:left;padding:14px 16px;border-radius:16px;border:1px solid rgba(212,175,55,.65);background:linear-gradient(135deg,rgba(27,24,12,.92),rgba(10,10,10,.96));color:#fff;cursor:pointer;font-size:1rem;">${alt}</button>`).join('');
-
-  container.innerHTML = `
-    <div style="max-width:820px;margin:0 auto;padding:18px 14px 42px;">
-      <button type="button" onclick="window.exibirCapitulo('${chaveLivro}', ${Number(capNum)})" class="btn-mission" style="margin-bottom:18px">← Voltar ao Capítulo</button>
-      <div style="border:1.5px solid #d4af37;border-radius:24px;background:linear-gradient(135deg,rgba(24,22,12,.94),rgba(8,8,8,.97));padding:24px;box-shadow:0 0 28px rgba(212,175,55,.18);">
-        <div style="color:#d4af37;font-family:Cinzel,serif;font-size:1.6rem;margin-bottom:12px">Pergunta do Capítulo</div>
-        <div style="color:#fff;font-size:1.15rem;line-height:1.7;margin-bottom:18px">${quiz.pergunta}</div>
-        <div style="display:grid;gap:12px;">${botoes}</div>
-      </div>
-    </div>`;
-};
-
-window.responderPergunta = async function responderPergunta(livroChave, capNum, ehCorreta) {
-  if (processandoResposta) return;
-  processandoResposta = true;
-
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      processandoResposta = false;
-      return;
-    }
-
-    if (!ehCorreta) {
-      exibirMensagem('<div style="font-size:1.65rem;color:#ff9f9f;font-family:Cinzel,serif">Resposta errada</div><div style="margin-top:10px;color:#fff">Esse capítulo não foi marcado como lido.</div>', 'rgba(24,8,8,.94)');
-      setTimeout(() => {
-        processandoResposta = false;
-        window.exibirCapitulo(livroChave, capNum);
-      }, 2200);
-      return;
-    }
-
-    const { data: existente } = await supabase
-      .from('progresso')
-      .select('id, concluido')
-      .eq('uid', user.id)
-      .eq('livro', livroChave)
-      .eq('capitulo', Number(capNum))
-      .maybeSingle();
-
-    const jaConcluido = existente?.concluido === true;
-
-    if (!jaConcluido) {
-      await supabase.from('progresso').upsert({
-        uid: user.id,
-        livro: livroChave,
-        capitulo: Number(capNum),
-        concluido: true,
-        created_at: new Date().toISOString(),
-      }, { onConflict: 'uid,livro,capitulo' });
-
-      await atualizarPontosDoUsuario(user.id, QUIZ_POINTS, `Capítulo ${livroChave} ${capNum}`);
-    }
-
-    const { data: concluidos } = await supabase.from('progresso').select('capitulo').eq('uid', user.id).eq('concluido', true);
-    const totalCaps = concluidos?.length || 0;
-    await atualizarExpAposLeitura(user.id, totalCaps);
-    atualizarBarraExpMenu(totalCaps);
-    await verificarLivroCompleto(user.id, livroChave);
-    await verificarBadges(user.id);
-
-    if (window.confetti) {
-      window.confetti({ particleCount: 130, spread: 68, origin: { y: 0.62 }, colors: ['#d4af37', '#fff', '#2ecc71'] });
-    }
-
-    exibirMensagem(`<div style="font-size:1.75rem;color:#fff;font-family:Cinzel,serif">✨ PARABÉNS ✨</div><div style="margin-top:10px;color:#d4af37;font-size:1.1rem">${jaConcluido ? 'Capítulo já concluído antes' : `+${QUIZ_POINTS} pontos`}</div><div style="margin-top:8px;color:#fff">Capítulo marcado como lido.</div>`);
-
-    setTimeout(() => {
-      processandoResposta = false;
-      window.abrirLivro(livroChave);
-    }, 2400);
-  } catch (erro) {
-    console.error('Erro ao responder pergunta:', erro);
-    processandoResposta = false;
-    exibirMensagem('<div style="color:#ffb1b1">Erro ao salvar progresso.</div>', 'rgba(24,8,8,.94)', 2000);
-  }
-};
-
-window.voltarParaBiblia = function voltarParaBiblia() {
-  if (window.carregarListaLivros) window.carregarListaLivros();
-};
 
 async function _renderizarRanking() {
-  const container = document.getElementById('ranking-container');
-  const readingView = document.getElementById('reading-view');
-  if (!container) return;
-  if (readingView) readingView.style.display = 'none';
-  container.style.display = 'block';
+    const container = document.getElementById('ranking-container');
+    if (!container) return;
 
-  const { data: { user: eu } } = await supabase.auth.getUser();
-  const { data: usuarios } = await supabase.from('users').select('uid,name,points,photourl,photoURL').order('points', { ascending: false }).limit(50);
-  const rows = (usuarios || []).map((u, i) => {
-    const foto = u.photoURL || u.photourl || gerarAvatarPadrao(u.name || 'Herói');
-    return `<div onclick="window.verPerfilDetalhado && window.verPerfilDetalhado('${u.uid}')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;border:1px solid rgba(212,175,55,.5);background:${eu?.id===u.uid?'rgba(212,175,55,.16)':'rgba(255,255,255,.04)'};cursor:pointer;">
-      <div style="width:34px;text-align:center;color:#d4af37;font-weight:800">${i+1}</div>
-      <img src="${foto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #d4af37">
-      <div style="flex:1"><div style="color:#fff;font-weight:700">${u.name || 'Herói'}</div><div style="color:#d4af37">${u.points || 0} pts</div></div>
-      <div style="color:#bbb">${calcularNivel(u.points || 0)}</div>
-    </div>`;
-  }).join('');
+    const { data: { user: eu } } = await supabase.auth.getUser();
+    const { data: usuarios } = await supabase
+        .from('users')
+        .select('uid, name, points, photoURL')
+        .order('points', { ascending: false })
+        .limit(50);
 
-  container.innerHTML = `<div style="max-width:860px;margin:0 auto;padding:20px 14px 40px"><button onclick="window.voltarParaBiblia()" class="btn-mission" style="margin-bottom:18px">← Voltar</button><h2 style="color:#d4af37;font-family:Cinzel">Ranking</h2><div style="display:grid;gap:12px;margin-top:18px">${rows}</div></div>`;
+    if (!usuarios) return;
+
+    let html = `<div style="max-width:700px; margin:0 auto;">`;
+
+    usuarios.forEach((u, index) => {
+        const isMe  = eu?.id === u.uid;
+        const foto  = u.photoURL || gerarAvatarPadrao(u.name || '');
+        const titulo = calcularNivel(u.points || 0);
+        const nome   = u.name ? (u.name.length > 12 ? u.name.substring(0, 12) + '…' : u.name) : 'Herói';
+
+        let rankConteudo = index + 1;
+        if (index === 0) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
+        else if (index === 1) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-prata"></div><div class="trofeu-icone">🥈</div></div>`;
+        else if (index === 2) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-bronze"></div><div class="trofeu-icone">🥉</div></div>`;
+
+        html += `
+            <div onclick="window.verPerfilDetalhado('${u.uid}')"
+                 style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:10px;
+                        cursor:pointer; transition:transform 0.2s;
+                        background:${index < 3 ? 'rgba(212,175,55,0.25)' : isMe ? 'rgba(212,175,55,0.15)' : 'rgba(0,0,0,0.4)'};
+                        border:1px solid ${index < 3 ? '#d4af37' : '#333'}; border-radius:12px; backdrop-filter:blur(5px);"
+                 onmouseover="this.style.transform='scale(1.02)'"
+                 onmouseout="this.style.transform='scale(1)'">
+                <div style="width:45px; display:flex; justify-content:center; align-items:center; font-family:'Cinzel'; font-weight:bold; color:#d4af37;">${rankConteudo}</div>
+                <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid #d4af37; object-fit:cover;" onerror="this.src='https://i.imgur.com/6VBx3io.png'">
+                <div style="flex:1; text-align:left;">
+                    <div style="color:white; font-weight:bold;">${nome} ${isMe ? '<span style="color:#d4af37; font-size:0.75rem;">(você)</span>' : ''}</div>
+                    <div class="nivel-chamas-ouro">${titulo}</div>
+                    <div style="color:#d4af37; font-size:0.8rem; font-weight:bold; margin-top:2px;">${u.points || 0} PTS</div>
+                </div>
+            </div>`;
+    });
+
+    container.innerHTML = html + '</div>';
 }
 
-const btnRanking = document.getElementById('nav-ranking');
-if (btnRanking && !btnRanking.dataset.boundRanking) {
-  btnRanking.dataset.boundRanking = '1';
-  btnRanking.addEventListener('click', _renderizarRanking);
+// ── VOLTAR PARA BÍBLIA ─────────────────────────────────────
+window.voltarParaBiblia = async function () {
+    document.body.classList.remove('modo-ranking-ativo');
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundSize = '';
+    document.body.style.backgroundAttachment = '';
+    if (_rankingChannel) {
+        supabase.removeChannel(_rankingChannel);
+        _rankingChannel = null;
+    }
+    try {
+        if (typeof window.abrirBibliaPrincipal === 'function') {
+            await window.abrirBibliaPrincipal();
+        } else {
+            await import('./bible.js');
+            if (typeof window.carregarListaLivros === 'function') window.carregarListaLivros();
+        }
+    } catch (erro) {
+        console.error('[game] Falha ao voltar para a Bíblia:', erro);
+    }
+};
+
+// ── EXIBIR CAPÍTULO ────────────────────────────────────────
+window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
+    const container = document.getElementById('bible-text');
+    if (!container) return;
+
+    rolagemMuitoRapida = false;
+    ultimaPosicaoScroll = window.scrollY;
+    let ultimaAtualizacao = Date.now();
+
+    import('./bible.js').then(modulo => {
+        const livro = modulo.bible[chaveLivro];
+        if (!livro) return alert('Livro não encontrado!');
+        const capitulo = livro.capitulos[numeroCapitulo];
+        if (!capitulo) return alert('Capítulo não encontrado!');
+
+        container.innerHTML = `
+            <div class="leitura-container" style="padding:40px; max-width:800px; margin:0 auto; color:#eee; line-height:1.8; font-family:'Poppins', sans-serif;">
+                <button onclick="window.abrirLivro('${chaveLivro}')" class="btn-mission" style="margin-bottom:30px;">⬅ Voltar aos Capítulos</button>
+                <h1 style="color:#d4af37; font-family:'Cinzel', serif;">${livro.nome} — Capítulo ${numeroCapitulo}</h1>
+                <h3 style="color:#b8941f; margin-bottom:30px; font-style:italic;">${capitulo.titulo || ''}</h3>
+                <div id="texto-leitura" class="texto-biblico" style="font-size:1.15rem; background:transparent; padding:25px; border-radius:10px; border-left:4px solid #d4af37;">
+                    ${capitulo.texto.replace(/\n/g, '<br>')}
+                </div>
+                <div style="margin-top:40px; text-align:center;">
+                    <button id="btn-missao" onclick="window.iniciarMissao('${chaveLivro}', '${numeroCapitulo}')"
+                        style="padding:15px 30px; background:#d4af37; color:#000; border:none; border-radius:5px; font-weight:bold; cursor:pointer; font-size:1.1rem;">
+                        ⚔️ INICIAR MISSÃO (DESAFIO)
+                    </button>
+                </div>
+            </div>`;
+
+        const bgUrl = livro.background.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundAttachment = 'fixed';
+
+        if (window._tratarScrollAtivo) {
+            window.removeEventListener('scroll', window._tratarScrollAtivo);
+            window._tratarScrollAtivo = null;
+        }
+
+        const tratarScroll = () => {
+            if (!document.querySelector('#texto-leitura')) {
+                window.removeEventListener('scroll', tratarScroll);
+                window._tratarScrollAtivo = null;
+                return;
+            }
+
+            const agora = Date.now();
+            const posicaoAtual = window.scrollY;
+            const distancia = Math.abs(posicaoAtual - ultimaPosicaoScroll);
+            const tempo = agora - ultimaAtualizacao;
+
+            if (tempo > 0 && distancia / tempo > 3.0 && !rolagemMuitoRapida) {
+                rolagemMuitoRapida = true;
+                exibirAvisoMeditacao();
+                document.body.style.overflow = 'hidden';
+                setTimeout(() => {
+                    document.body.style.overflow = 'auto';
+                    rolagemMuitoRapida = false;
+                }, 3000);
+            }
+
+            ultimaPosicaoScroll = posicaoAtual;
+            ultimaAtualizacao = agora;
+        };
+
+        window._tratarScrollAtivo = tratarScroll;
+        window.addEventListener('scroll', tratarScroll, { passive: true });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+};
+
+
+function _escAttr(valor) {
+    return String(valor ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+function _textoPerguntaBruto(pergunta) {
+    if (pergunta == null) return '';
+    if (typeof pergunta === 'string') return pergunta;
+    if (typeof pergunta !== 'object') return String(pergunta);
+    return (
+        pergunta.texto ||
+        pergunta.pergunta ||
+        pergunta.enunciado ||
+        pergunta.questao ||
+        pergunta.question ||
+        pergunta.titulo ||
+        pergunta.descricao ||
+        ''
+    );
+}
+
+function _normalizarOpcoes(pergunta) {
+    if (!pergunta || typeof pergunta !== 'object') return [];
+    let opcoes = [];
+    if (Array.isArray(pergunta.opcoes)) opcoes = pergunta.opcoes;
+    else if (Array.isArray(pergunta.alternativas)) opcoes = pergunta.alternativas;
+    else if (Array.isArray(pergunta.respostas)) opcoes = pergunta.respostas;
+
+    const indiceCorreto = Number(
+        pergunta.indiceCorreto ??
+        pergunta.correta ??
+        pergunta.resposta_correta ??
+        pergunta.alternativa_correta ??
+        -1
+    );
+
+    return opcoes.map((opt, idx) => {
+        if (typeof opt === 'string') {
+            return {
+                numero: idx + 1,
+                texto: opt,
+                correta: indiceCorreto === idx || indiceCorreto === idx + 1
+            };
+        }
+
+        const texto = opt?.texto ?? opt?.resposta ?? opt?.label ?? opt?.titulo ?? opt?.alternativa ?? `Opção ${idx + 1}`;
+        const correta = Boolean(
+            opt?.correta === true ||
+            opt?.certa === true ||
+            opt?.isCorrect === true ||
+            indiceCorreto === idx ||
+            indiceCorreto === idx + 1
+        );
+
+        return {
+            numero: opt?.numero ?? idx + 1,
+            texto,
+            correta
+        };
+    });
+}
+
+function _normalizarPergunta(pergunta) {
+    if (!pergunta) return null;
+
+    const texto = _textoPerguntaBruto(pergunta);
+    let opcoes = _normalizarOpcoes(pergunta);
+
+    if (!opcoes.length) {
+        opcoes = [
+            { numero: 1, texto: 'Sim, li com atenção', correta: true },
+            { numero: 2, texto: 'Não, quero ler novamente', correta: false }
+        ];
+    }
+
+    return {
+        texto: texto || 'Responda a pergunta do capítulo:',
+        explicacao: typeof pergunta === 'object' ? (pergunta.explicacao || pergunta.explicação || '') : '',
+        opcoes
+    };
+}
+
+window.abrirPerguntaCapitulo = function (chaveLivro, numeroCapitulo) {
+    import('./bible.js').then(modulo => {
+        const livro = modulo.bible[chaveLivro];
+        const capitulo = livro?.capitulos?.[numeroCapitulo];
+        const pergunta = _normalizarPergunta(capitulo?.pergunta);
+
+        if (!livro || !capitulo || !pergunta) {
+            alert('Este capítulo não possui pergunta configurada!');
+            return;
+        }
+
+        const container = document.getElementById('bible-text');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="padding:40px; max-width:770px; margin:0 auto; text-align:center;">
+                <button onclick="window.exibirCapitulo('${_escAttr(chaveLivro)}','${_escAttr(numeroCapitulo)}')" class="btn-mission" style="margin-bottom:20px; width:100%; max-width:770px;">⬅ Voltar ao Capítulo</button>
+                <div style="background:linear-gradient(180deg, rgba(24,20,6,0.96), rgba(9,9,9,0.96)); padding:24px; border-radius:24px; border:1.5px solid rgba(212,175,55,0.78); box-shadow:0 0 24px rgba(212,175,55,0.14), inset 0 0 18px rgba(212,175,55,0.05); text-align:left;">
+                    <h2 style="color:#d4af37; font-family:'Cinzel'; margin:0 0 18px 0; font-size:2rem;">Pergunta do Capítulo</h2>
+                    <div style="font-size:1.35rem; color:#fff; margin-bottom:22px; line-height:1.65; text-shadow:0 2px 5px rgba(0,0,0,.9);">${_escAttr(pergunta.texto)}</div>
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                        ${pergunta.opcoes.map((opt, idx) => `
+                            <button class="opcao-pergunta-capitulo" data-correta="${opt.correta ? 'true' : 'false'}"
+                                style="padding:18px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(212,175,55,0.7); border-radius:18px; cursor:pointer; text-align:left; transition:transform .2s, background .2s, box-shadow .2s;"
+                                onmouseover="this.style.transform='translateY(-1px)';this.style.background='rgba(212,175,55,0.12)';this.style.boxShadow='0 0 12px rgba(212,175,55,0.16)'"
+                                onmouseout="this.style.transform='translateY(0)';this.style.background='rgba(255,255,255,0.04)';this.style.boxShadow='none'">
+                                <span style="color:#d4af37; font-weight:bold; margin-right:8px;">${_escAttr(opt.numero ?? idx + 1)}.</span>${_escAttr(opt.texto)}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>`;
+
+        container.querySelectorAll('.opcao-pergunta-capitulo').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                window.verificarResposta(chaveLivro, numeroCapitulo, btn.dataset.correta === 'true', _escAttr(pergunta.explicacao || ''));
+            });
+        });
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+};
+
+
+// ── MISSÃO (QUIZ) ──────────────────────────────────────────
+window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
+    import('./bible.js').then(modulo => {
+        const livro = modulo.bible[chaveLivro];
+        if (!livro) return;
+        const capitulo = livro.capitulos[numeroCapitulo];
+        const perguntaOriginal = capitulo?.pergunta;
+        if (!perguntaOriginal) return alert('Este capítulo não possui desafio!');
+
+        const textoPreview = _textoPerguntaBruto(perguntaOriginal);
+        const container = document.getElementById('bible-text');
+        container.innerHTML = `
+            <div style="padding:40px; max-width:770px; margin:0 auto; text-align:center;">
+                <button onclick="window.exibirCapitulo('${chaveLivro}','${numeroCapitulo}')" class="btn-mission" style="margin-bottom:20px; width:100%; max-width:770px;">⬅ Voltar ao Capítulo</button>
+                <div style="background:linear-gradient(180deg, rgba(24,20,6,0.96), rgba(9,9,9,0.96)); padding:24px; border-radius:24px; border:1.5px solid rgba(212,175,55,0.78); box-shadow:0 0 24px rgba(212,175,55,0.14), inset 0 0 18px rgba(212,175,55,0.05);">
+                    <h2 style="color:#d4af37; font-family:'Cinzel'; margin:0 0 18px 0; font-size:2rem; text-align:left;">Pergunta do Capítulo</h2>
+                    <div style="font-size:1.35rem; color:#fff; margin-bottom:22px; line-height:1.65; text-align:left; text-shadow:0 2px 5px rgba(0,0,0,.9);">${_escAttr(textoPreview || 'Você leu com atenção este capítulo?')}</div>
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                        <button onclick="window.abrirPerguntaCapitulo('${chaveLivro}','${numeroCapitulo}')" style="padding:18px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(212,175,55,0.7); border-radius:18px; cursor:pointer; text-align:left;">Sim, li com atenção</button>
+                        <button onclick="window.exibirCapitulo('${chaveLivro}','${numeroCapitulo}')" style="padding:18px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(212,175,55,0.7); border-radius:18px; cursor:pointer; text-align:left;">Não, quero ler novamente</button>
+                    </div>
+                </div>
+            </div>`;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+};
+
+// ── VERIFICAR RESPOSTA ─────────────────────────────────────
+async function salvarProgressoCapitulo(uid, livroChave, capNum) {
+    const capituloNumero = Number(capNum);
+    const base = {
+        uid,
+        livro: livroChave,
+        capitulo: capituloNumero,
+        concluido: true
+    };
+
+    const { data: existente, error: erroBusca } = await supabase
+        .from('progresso')
+        .select('id, concluido')
+        .eq('uid', uid)
+        .eq('livro', livroChave)
+        .eq('capitulo', capituloNumero)
+        .maybeSingle();
+
+    if (erroBusca) throw erroBusca;
+    if (existente?.concluido === true) return { jaConcluido: true };
+
+    if (existente?.id) {
+        const tentativas = [
+            { ...base, created_at: new Date().toISOString() },
+            { ...base, data: new Date().toISOString() },
+            base
+        ];
+        let ultimoErro = null;
+        for (const payload of tentativas) {
+            const { error } = await supabase.from('progresso').update(payload).eq('id', existente.id);
+            if (!error) return { jaConcluido: false };
+            ultimoErro = error;
+        }
+        throw ultimoErro;
+    }
+
+    const tentativas = [
+        { ...base, created_at: new Date().toISOString() },
+        { ...base, data: new Date().toISOString() },
+        base
+    ];
+    let ultimoErro = null;
+    for (const payload of tentativas) {
+        const { error } = await supabase.from('progresso').insert(payload);
+        if (!error) return { jaConcluido: false };
+        ultimoErro = error;
+    }
+    throw ultimoErro;
+}
+
+window.verificarResposta = async function (livroChave, capNum, ehCorreta, explicacao) {
+    if (processandoResposta) return;
+    processandoResposta = true;
+    ehCorreta = ehCorreta === true || ehCorreta === 'true';
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        processandoResposta = false;
+        return;
+    }
+
+    document.querySelectorAll('#bible-text button').forEach(btn => btn.disabled = true);
+
+    if (ehCorreta) {
+        try {
+            const { jaConcluido } = await salvarProgressoCapitulo(user.id, livroChave, capNum);
+
+            if (jaConcluido) {
+                exibirFeedbackJaRealizado();
+                setTimeout(() => {
+                    processandoResposta = false;
+                    window.abrirLivro(livroChave);
+                }, 2200);
+                return;
+            }
+
+            if (window.confetti) {
+                window.confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#d4af37', '#ffffff', '#ffdf00']
+                });
+            }
+
+            tocarSomFogos();
+
+            const divVitoria = document.createElement('div');
+            divVitoria.className = 'vitoria-popup';
+            divVitoria.innerHTML = `<h2>✨ PARABÉNS! ✨</h2><p>Você acertou +20 pontos</p><div style="font-size:0.9rem; color:#d4af37; margin-top:10px; letter-spacing:2px;">GLÓRIA AO SENHOR JESUS</div>`;
+            document.body.appendChild(divVitoria);
+
+            await atualizarPontosDoUsuario(user.id, 20);
+
+            const { data: progData } = await supabase
+                .from('progresso')
+                .select('concluido')
+                .eq('uid', user.id)
+                .eq('concluido', true);
+
+            const totalCaps = progData?.length || 0;
+            await atualizarExpAposLeitura(user.id, totalCaps);
+            atualizarBarraExpMenu(totalCaps);
+            window.dispatchEvent(new CustomEvent('exp_atualizada', { detail: { totalCaps } }));
+
+            await verificarLivroCompleto(user.id, livroChave);
+            await verificarBadges(user.id);
+
+            setTimeout(() => {
+                divVitoria.remove();
+                processandoResposta = false;
+                window.abrirLivro(livroChave);
+            }, 2200);
+        } catch (e) {
+            console.error('Erro ao processar resposta:', e);
+            processandoResposta = false;
+            document.querySelectorAll('#bible-text button').forEach(btn => btn.disabled = false);
+            const msg = document.createElement('div');
+            msg.style.cssText = 'position:fixed;left:50%;top:55%;transform:translate(-50%,-50%);z-index:100000;background:rgba(45,0,0,.96);color:#fff;padding:22px 34px;border-radius:18px;border:2px solid #d4af37;box-shadow:0 0 24px rgba(0,0,0,.5);font-family:Poppins,sans-serif;font-size:1.1rem;';
+            msg.textContent = 'Erro ao salvar progresso.';
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 2200);
+        }
+    } else {
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay-erro';
+        overlay.style.cssText = `position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:99999; text-align:center; backdrop-filter:blur(8px);`;
+        overlay.innerHTML = `<div style="font-size:5rem; margin-bottom:20px;">🛡️</div><div style="color:#d4af37; font-family:'Cinzel', serif; font-size:2.5rem; text-shadow:0 0 15px rgba(212,175,55,0.6);">ERROU!</div><p style="color:#fff; font-family:'Poppins', sans-serif; font-size:1.2rem; margin-top:15px;">Volte e medite no texto para encontrar a verdade...</p>`;
+        document.body.appendChild(overlay);
+
+        setTimeout(() => {
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 0.8s';
+
+            setTimeout(() => {
+                overlay.remove();
+                processandoResposta = false;
+                window.exibirCapitulo(livroChave, capNum);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 800);
+        }, 3000);
+    }
+};
+
+// ── SOM DE FOGOS ───────────────────────────────────────────
+function tocarSomFogos() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const duration = 1.8;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buf;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(10, ctx.currentTime + duration);
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        noise.start();
+        noise.stop(ctx.currentTime + duration);
+    } catch (_) {}
+}
+
+// ── FEEDBACK: JÁ REALIZADO ─────────────────────────────────
+function exibirFeedbackJaRealizado() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; justify-content:center; align-items:center; z-index:10000; backdrop-filter:blur(10px);`;
+    overlay.innerHTML = `<div style="width:320px; padding:30px; text-align:center; background:#12120f; border:2px solid #3d2b1f; color:#8b7355; font-family:'Cinzel';"><div style="font-size:3rem; opacity:0.5;">📜</div><h3>JORNADA JÁ REALIZADA</h3><p>Você já recebeu os louros desta vitória anteriormente.</p><button onclick="this.closest('div[style]').remove()" style="background:#3d2b1f; color:#d4af37; border:none; padding:10px 20px; cursor:pointer; font-family:'Cinzel'; border-radius:6px;">CONTINUAR</button></div>`;
+    document.body.appendChild(overlay);
+}
+
+// ── AVISO DE MEDITAÇÃO ─────────────────────────────────────
+function exibirAvisoMeditacao() {
+    const aviso = document.createElement('div');
+    aviso.style.cssText = `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid #d4af37; padding:30px; border-radius:15px; z-index:20000; text-align:center; box-shadow:0 0 30px #000; font-family:'Cinzel', serif;`;
+    aviso.innerHTML = `<div style="font-size:3rem; margin-bottom:15px;">🕊️</div><h3 style="color:#d4af37; margin:0;">DEVAGAR, HERÓI!</h3><p style="color:#fff; font-size:1.1rem; margin-top:10px;">"Medite no texto amado e Jesus abençoa sua mente!"</p><div style="font-size:0.8rem; color:#888; margin-top:10px;">A sabedoria vale mais que os pontos.</div>`;
+    document.body.appendChild(aviso);
+
+    setTimeout(() => {
+        aviso.style.opacity = '0';
+        aviso.style.transition = 'opacity 0.5s';
+        setTimeout(() => aviso.remove(), 500);
+    }, 2500);
+}
+
+// ── AUDITORIA DE PONTOS via Realtime ──────────────────────
+supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (!session?.user) {
+        saldoAnterior = null;
+
+        if (_auditoriaChannel) {
+            supabase.removeChannel(_auditoriaChannel);
+            _auditoriaChannel = null;
+        }
+
+        _auditoriaUid = null;
+        return;
+    }
+
+    const uid = session.user.id;
+
+    if (_auditoriaUid === uid && _auditoriaChannel) return;
+
+    const { data: userData } = await supabase
+        .from('users')
+        .select('points')
+        .eq('uid', uid)
+        .single();
+
+    saldoAnterior = userData?.points || 0;
+    iniciarAuditoriaPontuacao(uid);
+});
+
+console.log('✅ Sistema de Jogo carregado!');
