@@ -8,11 +8,9 @@
     <meta name="theme-color" content="#d4af37">
     <title>Heróis da Fé - Jornada Espiritual Gamificada</title>
 
-    <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4783566653978134"
         crossorigin="anonymous"></script>
 
-    <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -24,24 +22,19 @@
     <meta name="msapplication-TileImage" content="/imagens/icon-144.png">
     <meta name="mobile-web-app-capable" content="yes">
 
-    <!-- Open Graph -->
     <meta property="og:title" content="Heróis da Fé">
     <meta property="og:description" content="Leia a Bíblia, ganhe pontos e suba no ranking!">
     <meta property="og:image" content="https://www.heroisdafe.app.br/imagens/icon-512.png">
     <meta property="og:url" content="https://www.heroisdafe.app.br/">
     <meta property="og:type" content="website">
 
-    <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="/imagens/icon-96.png">
     <link rel="shortcut icon" href="/imagens/icon-96.png">
 
-    <!-- Fontes -->
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 
-    <!-- CSS -->
     <link rel="stylesheet" href="css/style.css">
 
-    <!-- Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
     <style>
@@ -188,7 +181,9 @@
 
         #btn-recuperar-senha,
         #btn-instalar-app-login,
-        #btn-compartilhar-app {
+        #btn-compartilhar-app,
+        #btn-resetar-senha,
+        #btn-cancelar-reset {
             min-height: 58px;
         }
 
@@ -386,6 +381,29 @@
 
                 <button type="button" id="btn-registrar" class="btn-mission gold-shine compact-mission-btn">INICIAR JORNADA</button>
             </form>
+
+            <div id="reset-password-box" class="auth-form" style="display: none;">
+                <input type="password" id="reset-nova-senha" placeholder="Nova senha" minlength="8">
+                <small class="auth-field-tip">Mínimo de 8 dígitos</small>
+
+                <input type="password" id="reset-confirmar-senha" placeholder="Confirmar nova senha" minlength="8">
+
+                <div id="reset-password-message" class="auth-field-tip" style="margin-top: 8px; margin-bottom: 12px;">
+                    Digite sua nova senha para concluir.
+                </div>
+
+                <div class="auth-action-row">
+                    <button type="button" id="btn-resetar-senha" class="auth-special-btn gold-shine">
+                        SALVAR NOVA SENHA
+                    </button>
+                </div>
+
+                <div class="auth-action-row secondary">
+                    <button type="button" id="btn-cancelar-reset" class="auth-special-btn gray-glass">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
         </section>
 
         <section id="reading-view" class="reading-container" style="display: none;">
@@ -399,6 +417,7 @@
 
     <script type="module" src="js/config.js"></script>
     <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/reset-password.js"></script>
     <script type="module" src="js/bible.js"></script>
     <script type="module" src="js/game.js"></script>
     <script type="module" src="js/ui.js"></script>
@@ -411,27 +430,58 @@
     <script type="module">
         import { supabase }                from './js/config.js';
         import { atualizarBarraExpMenu }   from './js/badges.js';
-        import { iniciarListenerUsuario }  from './js/auth.js';
+        import { iniciarListenerUsuario, pararListenerUsuario } from './js/auth.js';
         import { iniciarSocial }           from './js/social.js';
         import { iniciarMonitorChat }      from './js/chat.js';
 
         const header        = document.querySelector('.top-nav');
         const sidebar       = document.getElementById('side-menu');
         const authContainer = document.getElementById('auth-container');
+        const readingView   = document.getElementById('reading-view');
 
-        const liberadoParaEntrar = sessionStorage.getItem('herois_login_liberado') === 'true';
+        let usuarioInicializado = null;
 
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        function mostrarTelaLogin() {
+            if (header)        header.style.display = 'none';
+            if (sidebar)       sidebar.style.display = 'none';
+            if (authContainer) authContainer.style.display = 'block';
+            if (readingView)   readingView.style.display = 'none';
+        }
+
+        function mostrarJogo() {
+            if (header)        header.style.display = 'flex';
+            if (sidebar)       sidebar.style.display = 'block';
+            if (authContainer) authContainer.style.display = 'none';
+        }
+
+        supabase.auth.onAuthStateChange(async (_event, session) => {
             const user = session?.user ?? null;
+            const liberadoParaEntrar = sessionStorage.getItem('herois_login_liberado') === 'true';
 
             if (user && liberadoParaEntrar) {
-                if (header)        header.style.display        = 'flex';
-                if (sidebar)       sidebar.style.display       = 'block';
-                if (authContainer) authContainer.style.display = 'none';
+                mostrarJogo();
 
-                iniciarListenerUsuario(user);
-                iniciarSocial(user);
-                iniciarMonitorChat(user);
+                if (usuarioInicializado !== user.id) {
+                    usuarioInicializado = user.id;
+
+                    try {
+                        iniciarListenerUsuario(user);
+                    } catch (e) {
+                        console.error('[index] Erro iniciarListenerUsuario:', e);
+                    }
+
+                    try {
+                        iniciarSocial(user);
+                    } catch (e) {
+                        console.error('[index] Erro iniciarSocial:', e);
+                    }
+
+                    try {
+                        iniciarMonitorChat(user);
+                    } catch (e) {
+                        console.error('[index] Erro iniciarMonitorChat:', e);
+                    }
+                }
 
                 try {
                     const { data: progData } = await supabase
@@ -446,12 +496,13 @@
                     console.error('[index] Erro ao carregar EXP:', e);
                 }
             } else {
-                if (header)        header.style.display        = 'none';
-                if (sidebar)       sidebar.style.display       = 'none';
-                if (authContainer) authContainer.style.display = 'block';
-
-                const readingView = document.getElementById('reading-view');
-                if (readingView) readingView.style.display = 'none';
+                usuarioInicializado = null;
+                try {
+                    pararListenerUsuario();
+                } catch (e) {
+                    console.warn('[index] Não foi possível parar listener:', e);
+                }
+                mostrarTelaLogin();
             }
         });
 
@@ -459,7 +510,10 @@
             return new Promise((resolve) => {
                 const checar = (n) => {
                     if (typeof window[nome] === 'function') return resolve(window[nome]);
-                    if (n <= 0) { console.warn(`[index] Função ${nome} não encontrada`); return resolve(null); }
+                    if (n <= 0) {
+                        console.warn(`[index] Função ${nome} não encontrada`);
+                        return resolve(null);
+                    }
                     setTimeout(() => checar(n - 1), 100);
                 };
                 checar(tentativas);
@@ -491,13 +545,22 @@
 
         const params = new URLSearchParams(window.location.search);
         const acao   = params.get('acao');
+
         if (acao) {
             const verificar = setInterval(() => {
                 const logado = document.getElementById('reading-view')?.style.display === 'block';
                 if (!logado) return;
+
                 clearInterval(verificar);
-                if (acao === 'biblia'  && window.carregarListaLivros) window.carregarListaLivros();
-                if (acao === 'ranking') document.getElementById('nav-ranking')?.click();
+
+                if (acao === 'biblia' && window.carregarListaLivros) {
+                    window.carregarListaLivros();
+                }
+
+                if (acao === 'ranking') {
+                    document.getElementById('nav-ranking')?.click();
+                }
+
                 window.history.replaceState({}, '', '/');
             }, 500);
         }
@@ -509,8 +572,10 @@
                 navigator.serviceWorker.register('/sw.js')
                     .then((reg) => {
                         console.log('[PWA] SW registrado:', reg.scope);
+
                         reg.addEventListener('updatefound', () => {
                             const novoSW = reg.installing;
+
                             novoSW.addEventListener('statechange', () => {
                                 if (novoSW.state === 'installed' && navigator.serviceWorker.controller) {
                                     mostrarBannerAtualizacao(novoSW);
@@ -537,7 +602,10 @@
                 cursor: pointer; white-space: nowrap;
             `;
             banner.innerHTML = `🔄 Nova versão disponível! <span style="text-decoration:underline;">Atualizar agora</span>`;
-            banner.onclick = () => { sw.postMessage('SKIP_WAITING'); banner.remove(); };
+            banner.onclick = () => {
+                sw.postMessage('SKIP_WAITING');
+                banner.remove();
+            };
             document.body.appendChild(banner);
             setTimeout(() => banner.remove(), 15000);
         }

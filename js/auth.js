@@ -1,11 +1,12 @@
 // js/auth.js
 // ═══════════════════════════════════════════════════════════
 // AUTENTICAÇÃO — LOGIN, CADASTRO, RECUPERAR SENHA, LISTENER
-// Corrigido para:
-// 1) criar conta e entrar direto
-// 2) login mostrar erro real
-// 3) liberar entrada só quando clicar em entrar/cadastrar
-// 4) não depender de login automático ao abrir o app
+// Fluxo final:
+// - Criou conta → entra direto
+// - Login → entra direto
+// - Abrir o app depois → não entra automático
+// - Recuperação de senha compatível com reset-password.js
+// - Mostra erro real
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './config.js';
@@ -54,7 +55,10 @@ if (inputFoto) {
 
             const { error } = await supabase
                 .from('users')
-                .update({ photoURL: base64, lastUpdate: new Date().toISOString() })
+                .update({
+                    photoURL: base64,
+                    lastUpdate: new Date().toISOString()
+                })
                 .eq('uid', user.id);
 
             if (error) throw error;
@@ -97,12 +101,23 @@ export function iniciarListenerUsuario(user) {
             table: 'users',
             filter: `uid=eq.${user.id}`
         }, (payload) => {
-            _renderizarUsuario(payload.new);
+            if (payload?.new) _renderizarUsuario(payload.new);
         })
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR') {
+                console.warn('[auth] Erro no canal realtime do usuário.');
+            }
+        });
 
     if (window.carregarListaLivros) {
         window.carregarListaLivros();
+    }
+}
+
+export function pararListenerUsuario() {
+    if (_realtimeChannel) {
+        supabase.removeChannel(_realtimeChannel);
+        _realtimeChannel = null;
     }
 }
 
@@ -193,7 +208,7 @@ function traduzirErro(msg) {
     }
 
     if (texto.includes('Email not confirmed')) {
-        return 'Seu e-mail ainda não foi confirmado.';
+        return 'Seu e-mail ainda não foi confirmado. Desative a confirmação obrigatória no Supabase se quiser entrar logo após criar a conta.';
     }
 
     if (texto.includes('Password should be')) {
@@ -214,6 +229,10 @@ function traduzirErro(msg) {
 
     if (texto.includes('duplicate key value')) {
         return 'Esse cadastro já existe.';
+    }
+
+    if (texto.includes('JWT')) {
+        return 'Sessão inválida. Tente entrar novamente.';
     }
 
     return texto;
@@ -244,7 +263,7 @@ async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco) {
     const payload = {
         uid: user.id,
         name: nome,
-        email: email,
+        email,
         data_nascimento: dataNascimentoBanco,
         photoURL: null,
         points: 0,
@@ -255,18 +274,20 @@ async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco) {
         lastUpdate: new Date().toISOString()
     };
 
-    const { data: existente } = await supabase
+    const { data: existente, error: existenteError } = await supabase
         .from('users')
         .select('uid')
         .eq('uid', user.id)
         .maybeSingle();
+
+    if (existenteError) throw existenteError;
 
     if (existente) {
         const { error: updateError } = await supabase
             .from('users')
             .update({
                 name: nome,
-                email: email,
+                email,
                 data_nascimento: dataNascimentoBanco,
                 lastUpdate: new Date().toISOString()
             })
@@ -283,8 +304,12 @@ async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco) {
     if (insertError) throw insertError;
 }
 
-async function liberarEntradaNoJogo() {
+function liberarEntradaNoJogo() {
     sessionStorage.setItem('herois_login_liberado', 'true');
+}
+
+function bloquearEntradaNoJogo() {
+    sessionStorage.removeItem('herois_login_liberado');
 }
 
 // ── CADASTRO ───────────────────────────────────────────────
@@ -325,29 +350,29 @@ if (btnRegistrar) {
             if (error) throw error;
 
             let user = authData?.user || null;
+            const sessionJaCriada = !!authData?.session;
 
-            // Se vier usuário do signUp, cria o perfil
             if (user) {
                 await criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco);
             }
 
-            // Faz login automático depois do cadastro
-            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-                email,
-                password: senha
-            });
+            if (!sessionJaCriada) {
+                const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password: senha
+                });
 
-            if (loginError) throw loginError;
+                if (loginError) throw loginError;
+                user = loginData?.user || user;
+            }
 
-            user = loginData?.user || user;
             if (!user) {
                 throw new Error('Não foi possível iniciar a sessão após o cadastro.');
             }
 
-            // Garante o perfil
             await criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco);
 
-            await liberarEntradaNoJogo();
+            liberarEntradaNoJogo();
 
             const campoNome = document.getElementById('reg-nome');
             const campoEmail = document.getElementById('reg-email');
@@ -361,10 +386,9 @@ if (btnRegistrar) {
 
             mostrarSucesso('Conta criada com sucesso! Entrando no jogo...');
 
-            // onAuthStateChange costuma cuidar disso, mas força atualização se precisar
             setTimeout(() => {
                 window.location.reload();
-            }, 300);
+            }, 250);
         } catch (erro) {
             console.error('[auth] Erro no cadastro:', erro);
             mostrarErro(traduzirErro(erro.message));
@@ -396,7 +420,7 @@ if (btnEntrar) {
 
             if (error) throw error;
 
-            await liberarEntradaNoJogo();
+            liberarEntradaNoJogo();
 
             setTimeout(() => {
                 window.location.reload();
@@ -448,14 +472,9 @@ if (btnSair) {
     btnSair.addEventListener('click', async () => {
         if (confirm('Deseja sair da conta?')) {
             try {
-                if (_realtimeChannel) {
-                    supabase.removeChannel(_realtimeChannel);
-                    _realtimeChannel = null;
-                }
-
-                sessionStorage.removeItem('herois_login_liberado');
+                pararListenerUsuario();
+                bloquearEntradaNoJogo();
                 await supabase.auth.signOut();
-
                 window.location.reload();
             } catch (erro) {
                 console.error('[auth] Erro ao sair:', erro);
