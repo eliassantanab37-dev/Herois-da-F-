@@ -20,6 +20,8 @@ const btnRecuperar = document.getElementById('btn-recuperar-senha');
 const btnSair = document.getElementById('btn-sair-menu');
 const inputFoto = document.getElementById('foto-input');
 let realtimeChannel = null;
+let listenerUsuarioIniciando = false;
+let listenerUsuarioUidAtual = null;
 
 function val(v, ...keys){ for(const k of keys){ if(v && v[k] != null) return v[k]; } return null; }
 function avatar(nome='?'){
@@ -38,23 +40,23 @@ function validarDataNascimento(data){ return /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]
 function formatarDataParaBanco(dataBR){ const [d,m,a] = dataBR.split('/'); return `${a}-${m}-${d}`; }
 
 async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco){
-  const payload = {
-    uid: user.id,
-    name: nome,
-    email,
-    data_nascimento: dataNascimentoBanco,
-    data_nascimento: dataNascimentoBanco,
-    photourl: null,
-    photoURL: null,
-    points: 0,
-    nivel: 1,
-    expatual: 0,
-    expAtual: 0,
-    createdat: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    lastupdate: new Date().toISOString(),
-    lastUpdate: new Date().toISOString(),
-    badges: {}
+          const payload = {
+            uid: user.id,
+            name: nome,
+            email,
+            data_nascimento: dataNascimentoBanco,
+            photourl: null,
+            photoURL: null,
+            points: 0,
+            nivel: 1,
+            expatual: 0,
+            expAtual: 0,
+            createdat: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            lastupdate: new Date().toISOString(),
+            lastUpdate: new Date().toISOString(),
+            badges: {}
+          };
   };
   const { data: row } = await supabase.from('users').select('uid').eq('uid', user.id).maybeSingle();
   if (row) {
@@ -67,17 +69,57 @@ async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco){
     const { error } = await supabase.from('users').insert(payload);
     if (error) throw error;
   }
+
+
+export async function iniciarListenerUsuario(user) {
+  if (!user?.id) return;
+
+  if (listenerUsuarioIniciando) return;
+  listenerUsuarioIniciando = true;
+
+  try {
+    if (realtimeChannel) {
+      await supabase.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+
+    listenerUsuarioUidAtual = user.id;
+
+    await carregarDadosUsuario(user.id);
+
+    realtimeChannel = supabase
+      .channel(`user-ui-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `uid=eq.${user.id}`
+        },
+        (payload) => {
+          if (listenerUsuarioUidAtual !== user.id) return;
+          if (payload?.new) renderizarUsuario(payload.new);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[user-ui] status:', status);
+      });
+  } catch (e) {
+    console.error('[iniciarListenerUsuario] erro:', e);
+  } finally {
+    listenerUsuarioIniciando = false;
+  }
 }
 
-export async function iniciarListenerUsuario(user){
-  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
-  if (!user) return;
-  await carregarDadosUsuario(user.id);
-  realtimeChannel = supabase.channel('user-ui-'+user.id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'users',filter:`uid=eq.${user.id}`},(p)=>{ if (p.new) renderizarUsuario(p.new); })
-    .subscribe();
+export async function pararListenerUsuario() {
+  listenerUsuarioUidAtual = null;
+
+  if (realtimeChannel) {
+    await supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
 }
-export function pararListenerUsuario(){ if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; } }
 
 async function carregarDadosUsuario(uid){
   const { data } = await supabase.from('users').select('*').eq('uid', uid).single();
