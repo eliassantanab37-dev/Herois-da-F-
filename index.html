@@ -47,112 +47,153 @@
         .alerta-leitura,
         .vitoria-popup,
         .overlay-erro,
-
         .chat-window             { z-index: 9999 !important; }
 
         .auth-field-tip {
             display: block;
             margin: -8px 0 10px 4px;
-            color: #b8ab7a;
+            color: #cdbf8a;
             font-size: 0.74rem;
             font-family: 'Poppins', sans-serif;
         }
 
         .auth-action-row {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             margin-top: 14px;
             width: 100%;
-        }
-
-        .auth-special-btn {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.18);
-            border-radius: 14px;
-            padding: 12px 14px;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 700;
-            font-size: 0.86rem;
-            cursor: pointer;
-            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-
-        .auth-special-btn:hover,
-        .compact-mission-btn:hover {
-            transform: translateY(-2px);
-        }
-
-        .gold-shine {
-            color: #1d1400;
-            background: linear-gradient(135deg, #b8860b 0%, #d4af37 35%, #ffe48a 50%, #d4af37 65%, #b8860b 100%);
-            box-shadow: 0 8px 24px rgba(212,175,55,0.32), inset 0 1px 0 rgba(255,255,255,0.35);
-        }
-
-        .gold-shine::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -65%;
-            width: 42%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.78), transparent);
-            transform: skewX(-22deg);
-            animation: shineToRight 2.4s linear infinite;
-            pointer-events: none;
-        }
-
-        .emerald-glass {
-            color: #eafff5;
-            background: linear-gradient(135deg, rgba(8,140,97,0.86), rgba(25,191,127,0.72));
-            box-shadow: 0 8px 24px rgba(0, 160, 110, 0.28), inset 0 1px 0 rgba(255,255,255,0.25);
-        }
-
-        .emerald-glass::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(120deg, rgba(255,255,255,0.18), transparent 42%, rgba(255,255,255,0.08) 72%, transparent);
-            pointer-events: none;
-        }
-
-        .gray-glass {
-            color: #ffffff;
-            background: linear-gradient(135deg, rgba(110,110,118,0.30), rgba(165,165,175,0.18));
-            border: 1px solid rgba(255,255,255,0.22);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255,255,255,0.20);
-        }
-
-        .gray-glass::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(120deg, rgba(255,255,255,0.22), transparent 38%, rgba(255,255,255,0.10) 68%, transparent);
-            pointer-events: none;
         }
 
         .auth-action-row.secondary {
             margin-top: 12px;
         }
 
+        .auth-special-btn,
+        .btn-mission,
         .compact-mission-btn {
-            width: fit-content;
-            min-width: 210px;
-            max-width: 100%;
-            align-self: center;
-            padding: 12px 22px;
-            margin: 14px auto 0;
-            border: none;
             position: relative;
             overflow: hidden;
+            isolation: isolate;
+            border-radius: 16px;
+            padding: 14px 18px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease, filter 0.28s ease;
+            border: 1px solid rgba(255,255,255,0.18);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .auth-special-btn:hover,
+        .btn-mission:hover,
+        .compact-mission-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.04);
+        }
+
+        .auth-special-btn:active,
+        .btn-mission:active,
+        .compact-mission-btn:active {
+            transform: translateY(0);
+        }
+
+        .auth-special-btn::before,
+        .btn-mission::before,
+        .compact-mission-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -72%;
+            width: 42%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.62), transparent);
+            transform: skewX(-24deg);
+            animation: shineToRight 2.8s linear infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .auth-special-btn::after,
+        .btn-mission::after,
+        .compact-mission-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent 45%, rgba(255,255,255,0.06));
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .auth-special-btn > *,
+        .btn-mission > *,
+        .compact-mission-btn > * {
+            position: relative;
+            z-index: 2;
+        }
+
+        .gold-shine {
+            color: #140f00;
+            background:
+                linear-gradient(135deg, rgba(110,79,6,0.92), rgba(212,175,55,0.78) 34%, rgba(255,236,154,0.95) 50%, rgba(212,175,55,0.78) 66%, rgba(110,79,6,0.92));
+            box-shadow:
+                0 12px 30px rgba(212,175,55,0.32),
+                inset 0 1px 0 rgba(255,255,255,0.42),
+                inset 0 -10px 22px rgba(0,0,0,0.08);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.28);
+        }
+
+        .emerald-glass {
+            color: #f4fffb;
+            background:
+                linear-gradient(135deg, rgba(9,104,76,0.80), rgba(27,180,126,0.66) 45%, rgba(61,228,173,0.58));
+            box-shadow:
+                0 12px 28px rgba(16, 170, 120, 0.24),
+                inset 0 1px 0 rgba(255,255,255,0.24),
+                inset 0 -10px 20px rgba(0,0,0,0.08);
+        }
+
+        .gray-glass {
+            color: #ffffff;
+            background:
+                linear-gradient(135deg, rgba(98,98,108,0.42), rgba(155,155,165,0.22) 45%, rgba(210,210,220,0.10));
+            border: 1px solid rgba(255,255,255,0.22);
+            box-shadow:
+                0 10px 26px rgba(0, 0, 0, 0.22),
+                inset 0 1px 0 rgba(255,255,255,0.20),
+                inset 0 -8px 16px rgba(0,0,0,0.08);
+        }
+
+        .compact-mission-btn {
+            width: min(100%, 250px);
+            align-self: center;
+            margin: 14px auto 0;
+            display: block;
+        }
+
+        #btn-entrar {
+            font-size: 0.98rem;
+            letter-spacing: 2.4px;
+            min-height: 70px;
+        }
+
+        #btn-recuperar-senha,
+        #btn-instalar-app-login,
+        #btn-compartilhar-app {
+            min-height: 58px;
+        }
+
+        #btn-instalar-app-login[style*="display:none"] {
+            display: none !important;
         }
 
         @keyframes shineToRight {
-            0% { left: -65%; }
-            100% { left: 135%; }
+            0% { left: -72%; }
+            100% { left: 138%; }
         }
 
         @media (max-width: 640px) {
@@ -161,7 +202,11 @@
             }
 
             .compact-mission-btn {
-                min-width: 100%;
+                width: 100%;
+            }
+
+            #btn-entrar {
+                min-height: 64px;
             }
         }
     </style>
@@ -280,7 +325,7 @@
                     <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">
                         Recuperar Senha
                     </button>
-                </div>
+</div>
 
                 <div class="auth-action-row">
                     <button type="button" id="btn-instalar-app-login" class="auth-special-btn gold-shine" style="display:none;">
