@@ -1,12 +1,10 @@
-// js/social.js — PRONTO
-// Correções principais:
-// 1. Não depende mais de upsert com onConflict(uid,friend_uid)
-// 2. Aceitar/enviar amizade funciona mesmo sem constraint composta no banco
-// 3. Sidebar social continua funcionando ao navegar entre telas
-// 4. Busca não duplica listeners
-// 5. Suporta photoURL e photourl
-// 6. Evita pedido duplicado, autoaceita quando já existe pedido inverso
-// 7. Reconsulta elementos do DOM para não quebrar quando a tela é recriada
+// js/social.js — PRONTO v2
+// Corrige:
+// 1. Pedido some ao aceitar amizade
+// 2. Amigo passa para a lista de amigos
+// 3. Pending não aparece se já existir accepted
+// 4. Sidebar fica resiliente mesmo com dados antigos no banco
+// 5. Busca e perfil respeitam amizade aceita antes de pending
 
 import { supabase } from './config.js';
 
@@ -144,6 +142,27 @@ async function garantirLinhaAmizade(uid, friendUid, status) {
   return data;
 }
 
+async function removerPendenciasEntre(uidA, uidB) {
+  const [r1, r2] = await Promise.all([
+    supabase
+      .from('friends')
+      .delete()
+      .eq('uid', uidA)
+      .eq('friend_uid', uidB)
+      .eq('status', 'pending'),
+
+    supabase
+      .from('friends')
+      .delete()
+      .eq('uid', uidB)
+      .eq('friend_uid', uidA)
+      .eq('status', 'pending'),
+  ]);
+
+  if (r1.error) throw r1.error;
+  if (r2.error) throw r2.error;
+}
+
 async function marcarNotificacoesLidas(meuUid, fromUid, tipo = 'pedido_amizade') {
   const { error } = await supabase
     .from('notificacoes')
@@ -251,7 +270,7 @@ async function recarregarSidebar(uid = _meuUid) {
   if (!lista || !uid) return;
 
   try {
-    const [pendentesResp, aceitosResp, notifsResp] = await Promise.all([
+    const [pendentesResp, relacionadasResp, notifsResp] = await Promise.all([
       supabase
         .from('friends')
         .select('uid, friend_uid, status, created_at')
@@ -261,10 +280,9 @@ async function recarregarSidebar(uid = _meuUid) {
 
       supabase
         .from('friends')
-        .select('friend_uid, status, created_at')
-        .eq('uid', uid)
-        .eq('status', 'accepted')
-        .limit(1000),
+        .select('uid, friend_uid, status, created_at')
+        .or(`and(uid.eq.${uid},status.eq.accepted),and(friend_uid.eq.${uid},status.eq.accepted)`)
+        .limit(2000),
 
       supabase
         .from('notificacoes')
@@ -275,26 +293,40 @@ async function recarregarSidebar(uid = _meuUid) {
     ]);
 
     if (pendentesResp.error) throw pendentesResp.error;
-    if (aceitosResp.error) throw aceitosResp.error;
+    if (relacionadasResp.error) throw relacionadasResp.error;
     if (notifsResp.error) throw notifsResp.error;
 
     const pendentesRaw = pendentesResp.data || [];
-    const aceitosRaw = aceitosResp.data || [];
+    const relacionadas = relacionadasResp.data || [];
     const notifs = notifsResp.data || [];
+
+    const amigosAceitosSet = new Set();
+    for (const r of relacionadas) {
+      const outroId = r.uid === uid ? r.friend_uid : r.uid;
+      if (outroId) amigosAceitosSet.add(outroId);
+    }
 
     const pendentesMap = new Map();
     for (const p of pendentesRaw) {
+      if (amigosAceitosSet.has(p.uid)) continue;
       if (!pendentesMap.has(p.uid)) pendentesMap.set(p.uid, p);
     }
     const pendentes = [...pendentesMap.values()];
 
-    const aceitosIds = [...new Set(aceitosRaw.map((x) => x.friend_uid).filter(Boolean))];
-    const pendentesIds = [...new Set(pendentes.map((x) => x.uid).filter(Boolean))];
-    const idsParaBuscar = [...new Set([...aceitosIds, ...pendentesIds])];
+    const idsParaBuscar = [
+      ...new Set([
+        ...[...amigosAceitosSet],
+        ...pendentes.map((x) => x.uid).filter(Boolean),
+      ]),
+    ];
 
     let users = [];
     if (idsParaBuscar.length) {
-      const { data, error } = await supabase.from('users').select('*').in('uid', idsParaBuscar);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .in('uid', idsParaBuscar);
+
       if (error) throw error;
       users = data || [];
     }
@@ -333,7 +365,7 @@ async function recarregarSidebar(uid = _meuUid) {
         .filter(Boolean)
     );
 
-    const amigosOrdenados = aceitosIds
+    const amigosOrdenados = [...amigosAceitosSet]
       .map((id) => usersMap.get(id))
       .filter(Boolean)
       .sort((a, b) => {
@@ -402,12 +434,15 @@ async function recarregarSidebar(uid = _meuUid) {
 }
 
 function statusRelacionamento(rows, meuUid, outroUid) {
-  const ida = rows.find((r) => r.uid === meuUid && r.friend_uid === outroUid);
-  const volta = rows.find((r) => r.uid === outroUid && r.friend_uid === meuUid);
+  const idaAccepted = rows.some((r) => r.uid === meuUid && r.friend_uid === outroUid && r.status === 'accepted');
+  const voltaAccepted = rows.some((r) => r.uid === outroUid && r.friend_uid === meuUid && r.status === 'accepted');
+  if (idaAccepted || voltaAccepted) return 'accepted';
 
-  if (ida?.status === 'accepted' || volta?.status === 'accepted') return 'accepted';
-  if (ida?.status === 'pending') return 'pending_sent';
-  if (volta?.status === 'pending') return 'pending_received';
+  const idaPending = rows.some((r) => r.uid === meuUid && r.friend_uid === outroUid && r.status === 'pending');
+  const voltaPending = rows.some((r) => r.uid === outroUid && r.friend_uid === meuUid && r.status === 'pending');
+
+  if (idaPending) return 'pending_sent';
+  if (voltaPending) return 'pending_received';
   return 'none';
 }
 
@@ -500,35 +535,31 @@ function initBusca(meuUid) {
 }
 
 async function dadosPerfil(uid, viewerId) {
-  const [userResp, acceptedResp, pendingResp, chaptersResp, trophiesResp] = await Promise.all([
+  const [userResp, relResp, chaptersResp, trophiesResp] = await Promise.all([
     supabase.from('users').select('*').eq('uid', uid).maybeSingle(),
     supabase
       .from('friends')
-      .select('id')
-      .or(
-        `and(uid.eq.${viewerId},friend_uid.eq.${uid},status.eq.accepted),and(uid.eq.${uid},friend_uid.eq.${viewerId},status.eq.accepted)`
-      )
-      .limit(1),
-    supabase
-      .from('friends')
-      .select('id,uid,friend_uid')
-      .or(
-        `and(uid.eq.${viewerId},friend_uid.eq.${uid},status.eq.pending),and(uid.eq.${uid},friend_uid.eq.${viewerId},status.eq.pending)`
-      ),
+      .select('id,uid,friend_uid,status')
+      .or(`uid.eq.${viewerId},friend_uid.eq.${viewerId}`),
     supabase.from('progresso').select('id').eq('uid', uid).eq('concluido', true),
     supabase.from('user_badges').select('id').eq('uid', uid).eq('conquistada', true),
   ]);
 
   if (userResp.error) throw userResp.error;
-  if (acceptedResp.error) throw acceptedResp.error;
-  if (pendingResp.error) throw pendingResp.error;
+  if (relResp.error) throw relResp.error;
   if (chaptersResp.error) throw chaptersResp.error;
   if (trophiesResp.error) throw trophiesResp.error;
 
-  const pendingRows = pendingResp.data || [];
-  const jaAmigo = Boolean((acceptedResp.data || []).length);
-  const euEnvieiPendente = pendingRows.some((r) => r.uid === viewerId && r.friend_uid === uid);
-  const eleMeEnviouPendente = pendingRows.some((r) => r.uid === uid && r.friend_uid === viewerId);
+  const rows = (relResp.data || []).filter((r) => {
+    return (
+      (r.uid === viewerId && r.friend_uid === uid) ||
+      (r.uid === uid && r.friend_uid === viewerId)
+    );
+  });
+
+  const jaAmigo = rows.some((r) => r.status === 'accepted');
+  const euEnvieiPendente = !jaAmigo && rows.some((r) => r.uid === viewerId && r.friend_uid === uid && r.status === 'pending');
+  const eleMeEnviouPendente = !jaAmigo && rows.some((r) => r.uid === uid && r.friend_uid === viewerId && r.status === 'pending');
 
   return {
     userData: userResp.data,
@@ -676,13 +707,18 @@ window.enviarPedidoAmizade = async function enviarPedidoAmizade(amigoId, nome = 
 
 async function aceitarPedido(meuUid, fromUid) {
   try {
-    await garantirLinhaAmizade(fromUid, meuUid, 'accepted');
+    await removerPendenciasEntre(meuUid, fromUid);
     await garantirLinhaAmizade(meuUid, fromUid, 'accepted');
+    await garantirLinhaAmizade(fromUid, meuUid, 'accepted');
     await marcarNotificacoesLidas(meuUid, fromUid, 'pedido_amizade');
 
-    const { data: fromUser } = await supabase.from('users').select('name').eq('uid', meuUid).maybeSingle();
-    await criarNotificacaoAceita(fromUid, meuUid, fromUser?.name || 'Seu amigo');
+    const { data: meUser } = await supabase
+      .from('users')
+      .select('name')
+      .eq('uid', meuUid)
+      .maybeSingle();
 
+    await criarNotificacaoAceita(fromUid, meuUid, meUser?.name || 'Seu amigo');
     await recarregarSidebar(meuUid);
     alerta('Amizade aceita com sucesso');
   } catch (e) {
