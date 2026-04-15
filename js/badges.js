@@ -111,22 +111,37 @@ export async function atualizarExpAposLeitura(uid, totalCapitulosLidos) {
 // ── VERIFICAR LIVRO COMPLETO ───────────────────────────────
 export async function verificarLivroCompleto(uid, livroChave) {
     const totalReal = TOTAL_CAPS_LIVRO[livroChave];
-    if (!totalReal) return;
-
-    const { data: userData } = await supabase.from('users').select(`livroCompleto_${livroChave}`).eq('uid', uid).single();
-    if (userData?.[`livroCompleto_${livroChave}`] === true) return;
+    if (!totalReal) return false;
 
     const { data: caps } = await supabase
         .from('progresso')
-        .select('concluido')
+        .select('capitulo')
         .eq('uid', uid)
         .eq('livro', livroChave)
         .eq('concluido', true);
 
-    if (caps && caps.length >= totalReal) {
-        await supabase.from('users').update({ [`livroCompleto_${livroChave}`]: true }).eq('uid', uid);
+    const concluidos = new Set((caps || []).map(c => String(c.capitulo)));
+    const completo = concluidos.size >= totalReal;
+
+    if (completo) {
+        const { data: userData } = await supabase.from('users').select('badges').eq('uid', uid).single();
+        const badges = userData?.badges || {};
+        const livrosCompletos = badges.livros_completos || {};
+
+        if (!livrosCompletos[livroChave]) {
+            livrosCompletos[livroChave] = true;
+            badges.livros_completos = livrosCompletos;
+            await supabase.from('users').update({ badges }).eq('uid', uid);
+        }
+
+        await supabase
+            .from('user_stats')
+            .upsert({ uid, total_livros_concluidos: Object.keys(livrosCompletos).length, lastupdate: new Date().toISOString() }, { onConflict: 'uid' });
+
         await verificarBadges(uid, livroChave);
     }
+
+    return completo;
 }
 
 // ── VERIFICAR E ENTREGAR TROFÉUS ───────────────────────────
@@ -159,7 +174,7 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
             const caps  = progresso[livroChave] || [];
             const lidos = caps.filter(c => c.concluido).length;
             totalCapLidos += lidos;
-            const completo = userData?.[`livroCompleto_${livroChave}`] === true;
+            const completo = userData?.badges?.livros_completos?.[livroChave] === true;
             livrosCompletos_map[livroChave] = completo;
             if (completo) livrosCompletos++;
         }

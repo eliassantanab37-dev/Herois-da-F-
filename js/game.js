@@ -268,23 +268,22 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
         if (!capitulo) return alert('Capítulo não encontrado!');
 
         container.innerHTML = `
-            <div class="leitura-container" style="padding:40px; max-width:800px; margin:0 auto; color:#eee; line-height:1.8; font-family:'Poppins', sans-serif;">
-                <button onclick="window.abrirLivro('${chaveLivro}')" class="btn-mission" style="margin-bottom:30px;">⬅ Voltar aos Capítulos</button>
-                <h1 style="color:#d4af37; font-family:'Cinzel', serif;">${livro.nome} — Capítulo ${numeroCapitulo}</h1>
-                <h3 style="color:#b8941f; margin-bottom:30px; font-style:italic;">${capitulo.titulo || ''}</h3>
-                <div id="texto-leitura" class="texto-biblico" style="font-size:1.15rem; background:transparent; padding:25px; border-radius:10px; border-left:4px solid #d4af37;">
+            <div class="reading-plain-wrap">
+                <button onclick="window.abrirLivro('${chaveLivro}')" class="back-gold-btn">← Voltar aos capítulos</button>
+                <div class="reading-title-box">
+                    <h1>${livro.nome} — Capítulo ${numeroCapitulo}</h1>
+                    <h3>${capitulo.titulo || ''}</h3>
+                </div>
+                <div id="texto-leitura" class="reading-plain-text">
                     ${capitulo.texto.replace(/\n/g, '<br>')}
                 </div>
-                <div style="margin-top:40px; text-align:center;">
-                    <button id="btn-missao" onclick="window.iniciarMissao('${chaveLivro}', '${numeroCapitulo}')"
-                        style="padding:15px 30px; background:#d4af37; color:#000; border:none; border-radius:5px; font-weight:bold; cursor:pointer; font-size:1.1rem;">
-                        ⚔️ INICIAR MISSÃO (DESAFIO)
-                    </button>
+                <div class="reading-action-wrap">
+                    <button id="btn-missao" class="gold-action-btn" onclick="window.iniciarMissao('${chaveLivro}', '${numeroCapitulo}')">RESPONDER PERGUNTA</button>
                 </div>
             </div>`;
 
-        const bgUrl = livro.background.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
+        const bgUrl = livro.background.normalize('NFD').replace(/[̀-ͯ]/g, '');
+        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.16), rgba(0,0,0,0.16)), url('${bgUrl}')`;
         document.body.style.backgroundSize = 'cover';
         document.body.style.backgroundAttachment = 'fixed';
 
@@ -336,17 +335,15 @@ window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
 
         const container = document.getElementById('bible-text');
         container.innerHTML = `
-            <div style="padding:40px; max-width:600px; margin:0 auto; text-align:center;">
-                <h2 style="color:#d4af37; font-family:'Cinzel'; margin-bottom:30px;">DESAFIO: ${livro.nome} ${numeroCapitulo}</h2>
-                <div style="background:rgba(0,0,0,0.6); padding:30px; border-radius:15px; border:2px solid #d4af37; margin-bottom:30px; backdrop-filter:blur(10px);">
+            <div class="quiz-wrap">
+                <button onclick="window.exibirCapitulo('${chaveLivro}','${numeroCapitulo}')" class="back-gold-btn">← Voltar ao capítulo</button><h2 class="quiz-title">DESAFIO: ${livro.nome} ${numeroCapitulo}</h2>
+                <div class="quiz-question-box">
                     <p style="font-size:1.3rem; color:#fff;">${pergunta.texto}</p>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:15px;">
+                <div class="quiz-options">
                     ${pergunta.opcoes.map(opt => `
                         <button onclick="window.verificarResposta('${chaveLivro}','${numeroCapitulo}',${opt.correta},'${(pergunta.explicacao || '').replace(/'/g, "\\'")}')"
-                                style="padding:18px; background:rgba(255,255,255,0.05); color:#fff; border:1px solid #d4af37; border-radius:8px; cursor:pointer; text-align:left; transition:background 0.2s;"
-                                onmouseover="this.style.background='rgba(212,175,55,0.15)'"
-                                onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+                                class="quiz-option-btn">
                             <span style="color:#d4af37; font-weight:bold;">${opt.numero}.</span> ${opt.texto}
                         </button>`).join('')}
                 </div>
