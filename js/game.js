@@ -24,6 +24,19 @@ let _rankingChannel = null;
 let _auditoriaChannel = null;
 let _auditoriaUid = null;
 let saldoAnterior = null;
+let _processandoTimeout = null; // FIX: safety timeout para liberar estado travado
+
+// FIX: libera processandoResposta após 12s caso algo trave
+function _agendarLiberacaoSegura() {
+    if (_processandoTimeout) clearTimeout(_processandoTimeout);
+    _processandoTimeout = setTimeout(() => {
+        if (processandoResposta) {
+            console.warn('[game] processandoResposta travado — liberando por segurança');
+            processandoResposta = false;
+            _liberarBotoesQuiz();
+        }
+    }, 12000);
+}
 
 // ── ESTILOS ────────────────────────────────────────────────
 const style = document.createElement('style');
@@ -425,6 +438,14 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
     const container = document.getElementById('bible-text');
     if (!container) return;
 
+    // FIX: mostra conteúdo mínimo imediatamente — evita tela preta enquanto carrega
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+        <div style="text-align:center;color:#d4af37;font-family:Cinzel,serif;">
+            <div style="font-size:2rem;margin-bottom:12px;">📖</div>
+            <div>Carregando capítulo...</div>
+        </div>
+    </div>`;
+
     // FIX: limpa scroll listener anterior SEMPRE antes de criar novo
     if (window._tratarScrollAtivo) {
         window.removeEventListener('scroll', window._tratarScrollAtivo);
@@ -513,6 +534,14 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
         window._tratarScrollAtivo = tratarScroll;
         window.addEventListener('scroll', tratarScroll, { passive: true });
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }).catch(err => {
+        // FIX: evita tela preta em caso de falha no import
+        console.error('[exibirCapitulo] erro:', err);
+        const c = document.getElementById('bible-text');
+        if (c) c.innerHTML = `<div style="color:#fff;text-align:center;padding:40px;">
+            <p>⚠️ Não foi possível carregar o capítulo.</p>
+            <button onclick="window.carregarListaLivros()" class="btn-mission" style="margin-top:16px;">Voltar</button>
+        </div>`;
     });
 };
 
@@ -594,7 +623,10 @@ window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }).catch(err => {
         console.error('Erro ao iniciar missão:', err);
-        alert('Erro ao abrir a missão.');
+        // FIX: garante que state não fica travado
+        processandoResposta = false;
+        _liberarBotoesQuiz();
+        alert('Erro ao abrir a missão. Tente novamente.');
     });
 };
 
@@ -603,6 +635,7 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
     // FIX: guard robusto — evita duplo clique e travamento
     if (processandoResposta) return;
     processandoResposta = true;
+    _agendarLiberacaoSegura(); // FIX: garante liberação mesmo em caso de erro silencioso
 
     // Desabilita todos os botões imediatamente
     document.querySelectorAll('.btn-resposta-quiz').forEach(btn => {
