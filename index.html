@@ -454,60 +454,85 @@
             if (authContainer) authContainer.style.display = 'none';
         }
 
+        let _realtimeMenuChannel = null;
+
+        async function inicializarUsuario(user) {
+            if (usuarioInicializado === user.id) return;
+            usuarioInicializado = user.id;
+
+            mostrarJogo();
+
+            try { iniciarListenerUsuario(user); } catch (e) { console.error('[index] iniciarListenerUsuario:', e); }
+            try { iniciarSocial(user); } catch (e) { console.error('[index] iniciarSocial:', e); }
+            try { iniciarMonitorChat(user); } catch (e) { console.error('[index] iniciarMonitorChat:', e); }
+
+            // Carrega EXP e pontos iniciais
+            await _atualizarMenuUsuario(user.id);
+
+            // Realtime: atualiza menu quando pontos/nivel/expAtual mudam no banco
+            if (_realtimeMenuChannel) {
+                supabase.removeChannel(_realtimeMenuChannel);
+                _realtimeMenuChannel = null;
+            }
+            _realtimeMenuChannel = supabase
+                .channel('menu-usuario-' + user.id)
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'users',
+                    filter: `uid=eq.${user.id}`
+                }, (payload) => {
+                    const u = payload.new;
+                    const ptsEl = document.getElementById('user-points-display');
+                    if (ptsEl) ptsEl.textContent = `${u.points || 0} pts`;
+                    const expBar   = document.getElementById('exp-bar-fill');
+                    const expTexto = document.getElementById('exp-texto');
+                    const nivelNum = document.getElementById('nivel-numero');
+                    const exp = u.expAtual ?? 0;
+                    const niv = u.nivel   ?? 1;
+                    if (expBar)   expBar.style.width   = `${exp}%`;
+                    if (expTexto) expTexto.textContent = `${exp}%`;
+                    if (nivelNum) nivelNum.textContent = niv;
+                })
+                .subscribe();
+        }
+
+        async function _atualizarMenuUsuario(uid) {
+            try {
+                const [{ data: userData }, { data: progData }] = await Promise.all([
+                    supabase.from('users').select('points, nivel, expAtual').eq('uid', uid).single(),
+                    supabase.from('progresso').select('concluido').eq('uid', uid).eq('concluido', true)
+                ]);
+                const totalCaps = progData?.length || 0;
+                atualizarBarraExpMenu(totalCaps);
+                const ptsEl = document.getElementById('user-points-display');
+                if (ptsEl && userData) ptsEl.textContent = `${userData.points || 0} pts`;
+            } catch (e) {
+                console.error('[index] Erro ao carregar EXP/pontos:', e);
+            }
+        }
+
         supabase.auth.onAuthStateChange(async (_event, session) => {
             const user = session?.user ?? null;
-            const liberadoParaEntrar = sessionStorage.getItem('herois_login_liberado') === 'true';
 
-            if (user && liberadoParaEntrar) {
-                mostrarJogo();
-
-                if (usuarioInicializado !== user.id) {
-                    usuarioInicializado = user.id;
-
-                    try {
-                        iniciarListenerUsuario(user);
-                    } catch (e) {
-                        console.error('[index] Erro iniciarListenerUsuario:', e);
-                    }
-
-                    try {
-                        iniciarSocial(user);
-                    } catch (e) {
-                        console.error('[index] Erro iniciarSocial:', e);
-                    }
-
-                    try {
-                        iniciarMonitorChat(user);
-                    } catch (e) {
-                        console.error('[index] Erro iniciarMonitorChat:', e);
-                    }
-                }
-
-                try {
-                    const { data: progData } = await supabase
-                        .from('progresso')
-                        .select('concluido')
-                        .eq('uid', user.id)
-                        .eq('concluido', true);
-
-                    const totalCaps = progData?.length || 0;
-                    atualizarBarraExpMenu(totalCaps);
-                } catch (e) {
-                    console.error('[index] Erro ao carregar EXP:', e);
-                }
+            if (user) {
+                // Sem checar sessionStorage: se há sessão válida, entra direto (resolve o bug do F5)
+                sessionStorage.setItem('herois_login_liberado', 'true');
+                await inicializarUsuario(user);
             } else {
                 usuarioInicializado = null;
-                try {
-                    pararListenerUsuario();
-                } catch (e) {
-                    console.warn('[index] Não foi possível parar listener:', e);
+                sessionStorage.removeItem('herois_login_liberado');
+                if (_realtimeMenuChannel) {
+                    supabase.removeChannel(_realtimeMenuChannel);
+                    _realtimeMenuChannel = null;
                 }
+                try { pararListenerUsuario(); } catch (e) {}
                 mostrarTelaLogin();
             }
         });
 
+        // Recebe totalCaps direto do game.js após leitura concluída
         window.addEventListener('exp_atualizada', (e) => {
-            // Usa o valor passado pelo evento (já calculado e correto)
             const totalCaps = e.detail?.totalCaps;
             if (totalCaps !== undefined) {
                 atualizarBarraExpMenu(totalCaps);
