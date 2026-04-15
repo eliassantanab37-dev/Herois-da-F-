@@ -347,8 +347,7 @@ window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
         const pergunta = resolverPerguntaDoCapitulo(capitulo);
         if (!pergunta) return alert('Este capítulo não possui desafio configurado corretamente!');
 
-        const explicacao = String(pergunta.explicacao || '').replace(/'/g, "\'").replace(/
-/g, ' ');
+        const explicacao = JSON.stringify(String(pergunta.explicacao || '')).slice(1, -1);
         const pontosGanhos = Number(pergunta.pontosGanhos || 20);
 
         const container = document.getElementById('bible-text');
