@@ -222,7 +222,7 @@ btnRecuperar?.addEventListener('click', async () => {
 
 btnSair?.addEventListener('click', async () => {
   try {
-    pararListenerUsuario();
+    await pararListenerUsuario();
     await supabase.auth.signOut();
     window.location.reload();
   } catch (e) { toast('Não foi possível sair da conta.', false); }
