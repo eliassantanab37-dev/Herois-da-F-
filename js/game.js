@@ -421,8 +421,16 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
 
                 const totalCaps = progData?.length || 0;
 
+                // Atualiza EXP no banco
                 await atualizarExpAposLeitura(user.id, totalCaps);
-                atualizarBarraExpMenu(totalCaps);
+
+                // 🔥 FORÇA atualização VISUAL IMEDIATA
+                setTimeout(() => {
+                    atualizarBarraExpMenu(totalCaps);
+                }, 300);
+
+                // 🔥 GARANTE que o menu lateral também atualize
+                window.dispatchEvent(new Event('exp_atualizada'));
 
                 await verificarLivroCompleto(user.id, livroChave);
                 await verificarBadges(user.id);
