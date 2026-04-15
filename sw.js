@@ -1,7 +1,7 @@
 // sw.js — Service Worker do Heróis da Fé (Supabase) — versão corrigida
 
-const CACHE_NAME = 'herois-da-fe-v6';
-const CACHE_ESTATICO = 'herois-estatico-v6';
+const CACHE_NAME = 'herois-da-fe-v7';
+const CACHE_ESTATICO = 'herois-estatico-v7';
 
 const SHELL = [
     '/',
@@ -187,4 +187,4 @@ self.addEventListener('notificationclick', (event) => {
     }
 });
 
-console.log('[SW] Heróis da Fé v5 ativo!');
+console.log('[SW] Heróis da Fé v7 ativo!');

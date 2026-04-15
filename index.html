@@ -126,22 +126,22 @@
       <div class="auth-header"><span class="auth-logo">⚜️ HERÓIS DA FÉ</span></div>
       <div class="auth-tabs"><button id="tab-entrar" class="tab-btn active">ENTRAR</button><button id="tab-cadastrar" class="tab-btn">CADASTRAR</button></div>
       <form id="form-entrar" class="auth-form">
-        <input type="email" id="login-email" placeholder="Seu E-mail" required>
-        <input type="password" id="login-senha" placeholder="Sua Senha" required>
+        <input type="email" id="login-email" placeholder="Seu E-mail" required autocomplete="email">
+        <input type="password" id="login-senha" placeholder="Sua Senha" required autocomplete="current-password">
         <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR NO JOGO</button>
         <div class="auth-action-row secondary"><button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button></div>
         <div class="auth-action-row install-share-row"><button type="button" id="btn-instalar-app-login" class="auth-special-btn install-gold-glass"><span>📲 Download do App</span></button><button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhar App</span></button></div>
       </form>
       <form id="form-cadastrar" class="auth-form" style="display:none;">
-        <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12"><small class="auth-field-tip">Máximo de 12 caracteres</small>
-        <input type="email" id="reg-email" placeholder="E-mail" required>
-        <input type="password" id="reg-senha" placeholder="Senha" required minlength="8"><small class="auth-field-tip">Mínimo de 8 dígitos</small>
+        <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12" autocomplete="name"><small class="auth-field-tip">Máximo de 12 caracteres</small>
+        <input type="email" id="reg-email" placeholder="E-mail" required autocomplete="email">
+        <input type="password" id="reg-senha" placeholder="Senha" required minlength="8" autocomplete="new-password"><small class="auth-field-tip">Mínimo de 8 dígitos</small>
         <input type="text" id="reg-data-nascimento" placeholder="dd/mm/aaaa" required inputmode="numeric" maxlength="10" autocomplete="bday">
         <button type="button" id="btn-registrar" class="btn-mission gold-shine compact-mission-btn">INICIAR JORNADA</button>
       </form>
       <div id="reset-password-box" class="auth-form" style="display:none;">
-        <input type="password" id="reset-nova-senha" placeholder="Nova senha" minlength="8"><small class="auth-field-tip">Mínimo de 8 dígitos</small>
-        <input type="password" id="reset-confirmar-senha" placeholder="Confirmar nova senha" minlength="8">
+        <input type="password" id="reset-nova-senha" placeholder="Nova senha" minlength="8" autocomplete="new-password"><small class="auth-field-tip">Mínimo de 8 dígitos</small>
+        <input type="password" id="reset-confirmar-senha" placeholder="Confirmar nova senha" minlength="8" autocomplete="new-password">
         <div id="reset-password-message" class="auth-field-tip">Digite sua nova senha para concluir.</div>
         <div class="auth-action-row"><button type="button" id="btn-resetar-senha" class="auth-special-btn gold-shine">SALVAR NOVA SENHA</button></div>
         <div class="auth-action-row secondary"><button type="button" id="btn-cancelar-reset" class="auth-special-btn gray-glass">Cancelar</button></div>
@@ -149,7 +149,6 @@
     </section>
 
     <section id="reading-view" class="reading-container" style="display:none;"><div id="bible-text"></div></section>
-    <section id="ranking-container" style="display:none;"></section>
   </main>
 
   <input type="file" id="foto-input" accept="image/*" style="display:none;">
@@ -166,6 +165,7 @@
   <script type="module" src="js/stats.js"></script>
   <script type="module" src="js/challenges.js"></script>
 
+  
   <script type="module">
     import { supabase } from './js/config.js';
     import { atualizarBarraExpMenu } from './js/badges.js';
@@ -184,59 +184,144 @@
 
     let currentUid = null;
     let realtimeMenuChannel = null;
+    let inicializandoUid = null;
+    let appPronto = false;
     window._paginaAtualJogo = 'biblia-home';
 
-    function mostrarTelaLogin(){ if (header) header.style.display='none'; if (sidebar) sidebar.style.display='none'; if (authContainer) authContainer.style.display='block'; if (readingView) readingView.style.display='none'; }
-    function mostrarJogo(){ if (header) header.style.display='flex'; if (sidebar) sidebar.style.display='block'; if (authContainer) authContainer.style.display='none'; if (readingView) readingView.style.display='block'; }
-    function aplicarResumoMenu(userData){ if (!userData) return; if (pointsEl) pointsEl.textContent = `${userData.points || 0} pts`; if (nivelNum) nivelNum.textContent = `${userData.nivel || 1}`; const ev = userData.expAtual ?? userData.expatual ?? 0; if (expTexto) expTexto.textContent = `${ev}%`; if (expBar) expBar.style.width = `${ev}%`; }
+    function mostrarTelaLogin() {
+      if (header) header.style.display = 'none';
+      if (sidebar) {
+        sidebar.style.display = 'none';
+        sidebar.classList.remove('active');
+      }
+      document.body.classList.remove('menu-open');
+      if (authContainer) authContainer.style.display = 'block';
+      if (readingView) readingView.style.display = 'none';
+    }
 
-    async function atualizarMenuUsuario(uid){
-      const { data: userData } = await supabase.from('users').select('*').eq('uid',uid).single();
+    function mostrarJogo() {
+      if (header) header.style.display = 'flex';
+      if (sidebar) sidebar.style.display = 'block';
+      if (authContainer) authContainer.style.display = 'none';
+      if (readingView) readingView.style.display = 'block';
+    }
+
+    function aplicarResumoMenu(userData) {
+      if (!userData) return;
+      if (pointsEl) pointsEl.textContent = `${userData.points || 0} pts`;
+      if (nivelNum) nivelNum.textContent = `${userData.nivel || 1}`;
+      const ev = userData.expAtual ?? userData.expatual ?? 0;
+      if (expTexto) expTexto.textContent = `${ev}%`;
+      if (expBar) expBar.style.width = `${ev}%`;
+    }
+
+    function limparSobreposicoesUI() {
+      document.getElementById('perfil-detalhado')?.remove();
+      document.getElementById('janela-chat')?.remove();
+      document.getElementById('bible-loading-overlay')?.remove();
+      document.body.classList.remove('menu-open');
+      sidebar?.classList.remove('active');
+    }
+
+    async function atualizarMenuUsuario(uid) {
+      const { data: userData } = await supabase.from('users').select('*').eq('uid', uid).single();
       aplicarResumoMenu(userData);
-      const { data: progData } = await supabase.from('progresso').select('concluido').eq('uid',uid).eq('concluido',true);
+      const { data: progData } = await supabase.from('progresso').select('concluido').eq('uid', uid).eq('concluido', true);
       atualizarBarraExpMenu(progData?.length || 0);
     }
 
-    async function inicializarUsuario(user){
+    async function destruirEstadoUsuario() {
+      currentUid = null;
+      inicializandoUid = null;
+      appPronto = false;
+      if (realtimeMenuChannel) {
+        await supabase.removeChannel(realtimeMenuChannel);
+        realtimeMenuChannel = null;
+      }
+      try { await pararListenerUsuario(); } catch {}
+      limparSobreposicoesUI();
+      mostrarTelaLogin();
+    }
+
+    async function inicializarUsuario(user) {
+      if (!user?.id) return;
+      if (inicializandoUid === user.id) return;
+      if (appPronto && currentUid === user.id) return;
+
+      inicializandoUid = user.id;
       currentUid = user.id;
-      mostrarJogo();
-      await iniciarListenerUsuario(user);
-      iniciarSocial(user);
-      iniciarMonitorChat(user);
-      await atualizarMenuUsuario(user.id);
-      try { window.carregarListaLivros?.(); } catch(e) { console.error(e); }
-      if (realtimeMenuChannel) { supabase.removeChannel(realtimeMenuChannel); }
-      realtimeMenuChannel = supabase.channel('menu-user-'+user.id).on('postgres_changes',{event:'*',schema:'public',table:'users',filter:`uid=eq.${user.id}`},(payload)=>aplicarResumoMenu(payload.new)).subscribe();
-      history.replaceState({page:'jogo'}, '');
+
+      try {
+        limparSobreposicoesUI();
+        mostrarJogo();
+        await iniciarListenerUsuario(user);
+        iniciarSocial(user);
+        iniciarMonitorChat(user);
+        await atualizarMenuUsuario(user.id);
+        try { await window.carregarListaLivros?.(); } catch (e) { console.error(e); }
+
+        if (realtimeMenuChannel) {
+          await supabase.removeChannel(realtimeMenuChannel);
+          realtimeMenuChannel = null;
+        }
+
+        realtimeMenuChannel = supabase
+          .channel('menu-user-' + user.id)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${user.id}` },
+            (payload) => aplicarResumoMenu(payload.new)
+          )
+          .subscribe();
+
+        history.replaceState({ page: 'jogo' }, '');
+        appPronto = true;
+      } finally {
+        inicializandoUid = null;
+      }
     }
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;
-      if (user) await inicializarUsuario(user); else { currentUid = null; if (realtimeMenuChannel) supabase.removeChannel(realtimeMenuChannel); try { pararListenerUsuario(); } catch {} mostrarTelaLogin(); }
+      if (user) {
+        await inicializarUsuario(user);
+      } else {
+        await destruirEstadoUsuario();
+      }
     });
 
-    const { data:{ session } } = await supabase.auth.getSession();
-    if (session?.user) await inicializarUsuario(session.user); else mostrarTelaLogin();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await inicializarUsuario(session.user);
+    } else {
+      await destruirEstadoUsuario();
+    }
 
-    window.addEventListener('exp_atualizada', (e) => { const totalCaps = e.detail?.totalCaps; if (typeof totalCaps === 'number') atualizarBarraExpMenu(totalCaps); });
-    window.voltarParaBiblia = function(){ document.getElementById('ranking-container').style.display='none'; document.getElementById('reading-view').style.display='block'; window._paginaAtualJogo='biblia-home'; window.carregarListaLivros?.(); };
+    window.addEventListener('exp_atualizada', (e) => {
+      const totalCaps = e.detail?.totalCaps;
+      if (typeof totalCaps === 'number') atualizarBarraExpMenu(totalCaps);
+    });
 
     let promptInstalacao = null;
-    function atualizarBotaoInstalar(){
+    function atualizarBotaoInstalar() {
       const btn = document.getElementById('btn-instalar-app-login');
       if (!btn) return;
       btn.disabled = false;
       btn.style.opacity = '1';
-      btn.title = promptInstalacao
-        ? 'Instalar app'
-        : 'Abrir instruções de instalação';
+      btn.title = promptInstalacao ? 'Instalar app' : 'Abrir instruções de instalação';
     }
+
     window.addEventListener('beforeinstallprompt', (event) => {
       event.preventDefault();
       promptInstalacao = event;
       atualizarBotaoInstalar();
     });
-    window.addEventListener('appinstalled', ()=>{ promptInstalacao = null; atualizarBotaoInstalar(); });
+
+    window.addEventListener('appinstalled', () => {
+      promptInstalacao = null;
+      atualizarBotaoInstalar();
+    });
+
     document.addEventListener('click', async (event) => {
       const btnInstalar = event.target.closest('#btn-instalar-app-login');
       if (btnInstalar) {
@@ -249,17 +334,28 @@
           alert('Para instalar: abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.');
         }
       }
+
       const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
       if (btnCompartilhar) {
-        const payload = { title:'Heróis da Fé', text:'Venha jogar Heróis da Fé comigo!', url: window.location.href };
-        if (navigator.share) { try { await navigator.share(payload); } catch {} }
-        else { await navigator.clipboard.writeText(window.location.href); alert('Link copiado!'); }
+        const payload = { title: 'Heróis da Fé', text: 'Venha jogar Heróis da Fé comigo!', url: window.location.href };
+        if (navigator.share) {
+          try { await navigator.share(payload); } catch {}
+        } else {
+          await navigator.clipboard.writeText(window.location.href);
+          alert('Link copiado!');
+        }
       }
     });
+
     atualizarBotaoInstalar();
 
     if ('serviceWorker' in navigator) {
-      try { const reg = await navigator.serviceWorker.register('/sw.js'); if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING'); } catch(e){ console.warn(e); }
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+      } catch (e) {
+        console.warn(e);
+      }
     }
   </script>
 </body>

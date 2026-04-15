@@ -12,6 +12,7 @@ function closeSidebar(){
 }
 function openSidebar(){
   if(!sideMenu) return;
+  sideMenu.style.display = 'block';
   sideMenu.classList.add('active');
   document.body.classList.add('menu-open');
 }

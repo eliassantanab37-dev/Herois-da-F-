@@ -284,10 +284,13 @@ function getBooks() {
 window.carregarListaLivros = async function carregarListaLivros() {
   const container = document.getElementById('bible-text');
   const readingView = document.getElementById('reading-view');
-  const ranking = document.getElementById('ranking-container');
   if (!container) return;
   if (readingView) readingView.style.display = 'block';
-  if (ranking) ranking.style.display = 'none';
+  window._paginaAtualJogo = 'biblia-home';
+  document.getElementById('perfil-detalhado')?.remove();
+  document.getElementById('janela-chat')?.remove();
+  window.fecharSidebar?.();
+  document.body.classList.remove('menu-open');
 
   mostrarLoading();
 
@@ -358,6 +361,12 @@ window.abrirLivro = async function abrirLivro(chaveLivro) {
   const container = document.getElementById('bible-text');
   if (!livro || !container) return;
 
+  window._paginaAtualJogo = 'livro';
+  document.getElementById('perfil-detalhado')?.remove();
+  document.getElementById('janela-chat')?.remove();
+  window.fecharSidebar?.();
+  document.body.classList.remove('menu-open');
+
   mostrarLoading();
 
   try {
@@ -402,9 +411,3 @@ window.abrirLivro = async function abrirLivro(chaveLivro) {
     removerLoading();
   }
 };
-
-const navBiblia = document.getElementById('nav-biblia');
-if (navBiblia && !navBiblia.dataset.boundBible) {
-  navBiblia.dataset.boundBible = '1';
-  navBiblia.addEventListener('click', () => window.carregarListaLivros());
-}

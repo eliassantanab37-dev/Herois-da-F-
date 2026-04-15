@@ -226,22 +226,28 @@ function iniciarAuditoriaPontuacao(uid) {
 const btnRanking = document.getElementById('nav-ranking');
 if (btnRanking) btnRanking.addEventListener('click', mostrarRanking);
 
-const btnBiblia = document.getElementById('nav-biblia');
-if (btnBiblia) btnBiblia.addEventListener('click', () => {
-    window.voltarParaBiblia();
-});
+function limparUITravada() {
+    document.getElementById('perfil-detalhado')?.remove();
+    document.getElementById('janela-chat')?.remove();
+    document.getElementById('bible-loading-overlay')?.remove();
+    document.querySelector('.overlay-sair-jogo')?.remove();
+    window.fecharSidebar?.();
+    document.body.classList.remove('menu-open');
+}
+
 async function mostrarRanking() {
     const bibleText = document.getElementById('bible-text');
     const readingView = document.getElementById('reading-view');
 
     if (!bibleText || !readingView) return;
 
- document.body.style.backgroundImage = '';
-document.body.style.backgroundSize = '';
-document.body.style.backgroundAttachment = '';
-readingView.style.display = 'block';
-window._paginaAtualJogo = 'ranking';
-document.body.classList.add('modo-ranking-ativo');
+    limparUITravada();
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundSize = '';
+    document.body.style.backgroundAttachment = '';
+    readingView.style.display = 'block';
+    window._paginaAtualJogo = 'ranking';
+    document.body.classList.add('modo-ranking-ativo');
 
     bibleText.innerHTML = `
         <style>
@@ -305,7 +311,7 @@ document.body.classList.add('modo-ranking-ativo');
                 🏆 RANKING DOS HERÓIS
             </h2>
 
-            <div id="ranking-container" style="margin-top:20px;">
+            <div id="ranking-lista" style="margin-top:20px;">
                 <p style="color:#888;">Convocando Guerreiros...</p>
             </div>
 
@@ -335,7 +341,7 @@ document.body.classList.add('modo-ranking-ativo');
 }
 
 async function _renderizarRanking() {
-    const container = document.getElementById('ranking-container');
+    const container = document.getElementById('ranking-lista');
     if (!container) return;
 
     const { data: { user: eu } } = await supabase.auth.getUser();
@@ -403,6 +409,7 @@ async function _renderizarRanking() {
 }
 
 window.voltarParaBiblia = function () {
+    limparUITravada();
     document.body.classList.remove('modo-ranking-ativo');
     document.body.style.backgroundImage = '';
     document.body.style.backgroundSize = '';
@@ -428,8 +435,13 @@ window.voltarParaBiblia = function () {
         bibleText.innerHTML = '';
     }
 
+    if (_processandoTimeout) {
+        clearTimeout(_processandoTimeout);
+        _processandoTimeout = null;
+    }
+
     if (window.carregarListaLivros) {
-        window.carregarListaLivros();
+        Promise.resolve(window.carregarListaLivros()).catch(console.error);
     }
 };
 
@@ -437,6 +449,8 @@ window.voltarParaBiblia = function () {
 window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
     const container = document.getElementById('bible-text');
     if (!container) return;
+
+    limparUITravada();
 
     // FIX: mostra conteúdo mínimo imediatamente — evita tela preta enquanto carrega
     container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
@@ -462,6 +476,8 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
 
         const capitulo = livro.capitulos[numeroCapitulo];
         if (!capitulo) return alert('Capítulo não encontrado!');
+
+        window._paginaAtualJogo = 'capitulo';
 
         container.innerHTML = `
             <div class="leitura-container" style="padding:40px; max-width:800px; margin:0 auto; color:#eee; line-height:1.8; font-family:'Poppins', sans-serif;">
@@ -578,6 +594,8 @@ window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
         if (!pergunta) {
             return alert('Este capítulo não possui desafio configurado corretamente!');
         }
+
+        window._paginaAtualJogo = 'missao';
 
         const explicacao = JSON.stringify(String(pergunta.explicacao || '')).slice(1, -1);
         const pontosGanhos = Number(pergunta.pontosGanhos || 20);

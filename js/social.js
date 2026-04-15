@@ -14,6 +14,23 @@ let heartbeatTimer = null;
 let _meuUid = null;
 let _inputBuscaVinculado = null;
 
+let _perfilRequestId = 0;
+
+function fecharMenuLateral() {
+  try { window.fecharSidebar?.(); } catch {}
+  document.body.classList.remove('menu-open');
+  const sideMenu = document.getElementById('side-menu');
+  if (sideMenu) sideMenu.classList.remove('active');
+}
+
+function comTimeout(promise, ms = 8000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout_perfil')), ms))
+  ]);
+}
+
+
 function elLista() {
   return document.getElementById('lista-amigos-sidebar');
 }
@@ -208,6 +225,16 @@ function bindProfileButtons(uid) {
 
   if (pic) pic.onclick = () => window.verPerfilDetalhado(uid);
   if (btn) btn.onclick = () => window.verPerfilDetalhado(uid);
+}
+
+function abrirPerfilSeguro(uid) {
+  fecharMenuLateral();
+  return window.verPerfilDetalhado?.(uid);
+}
+
+function abrirChatSeguro(uid, nome) {
+  fecharMenuLateral();
+  return window.abrirChat?.(uid, nome);
 }
 
 export function iniciarSocial(user) {
@@ -406,9 +433,9 @@ async function recarregarSidebar(uid = _meuUid) {
 
       div.addEventListener('click', () => {
         if (notifMsg.has(u.uid)) {
-          window.abrirChat?.(u.uid, nome);
+          abrirChatSeguro(u.uid, nome);
         } else {
-          window.verPerfilDetalhado?.(u.uid);
+          abrirPerfilSeguro(u.uid);
         }
       });
 
@@ -521,10 +548,10 @@ function initBusca(meuUid) {
 
             card.querySelector('.act-msg')?.addEventListener('click', (e) => {
               e.stopPropagation();
-              window.abrirChat?.(u.uid, nome);
+              abrirChatSeguro(u.uid, nome);
             });
 
-            card.addEventListener('click', () => window.verPerfilDetalhado?.(u.uid));
+            card.addEventListener('click', () => abrirPerfilSeguro(u.uid));
             resultados.appendChild(card);
           });
       } catch (e) {
@@ -571,31 +598,44 @@ async function dadosPerfil(uid, viewerId) {
   };
 }
 
+
 window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
+  const reqId = ++_perfilRequestId;
+
   document.getElementById('perfil-detalhado')?.remove();
+  fecharMenuLateral();
 
   const overlay = document.createElement('div');
   overlay.id = 'perfil-detalhado';
   overlay.className = 'perfil-overlay';
   overlay.innerHTML = '<div class="perfil-modal loading" style="color:#d4af37; padding:40px; text-align:center;">Carregando...</div>';
   document.body.appendChild(overlay);
+
+  const fecharOverlay = () => {
+    if (overlay && overlay.parentNode) overlay.remove();
+  };
+
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) fecharOverlay();
   });
 
   try {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
-
-    const user = authData?.user;
+    const authResp = await comTimeout(supabase.auth.getUser(), 6000);
+    const user = authResp?.data?.user;
     if (!user) {
-      overlay.remove();
+      fecharOverlay();
       return;
     }
 
-    const { userData, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus } = await dadosPerfil(uid, user.id);
+    const { userData, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus } = await comTimeout(dadosPerfil(uid, user.id), 8000);
+
+    if (reqId !== _perfilRequestId) {
+      fecharOverlay();
+      return;
+    }
+
     if (!userData) {
-      overlay.remove();
+      fecharOverlay();
       return;
     }
 
@@ -634,26 +674,28 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
         <div id="perfil-extra"></div>
       </div>`;
 
-    overlay.querySelector('.perfil-close')?.addEventListener('click', () => overlay.remove());
-    overlay.querySelector('.perfil-back')?.addEventListener('click', () => overlay.remove());
+    overlay.querySelector('.perfil-close')?.addEventListener('click', fecharOverlay);
+    overlay.querySelector('.perfil-back')?.addEventListener('click', fecharOverlay);
     overlay.querySelector('#perfil-mudar-foto')?.addEventListener('click', () => document.getElementById('foto-input')?.click());
     overlay.querySelector('#perfil-msg-btn')?.addEventListener('click', () => {
-      overlay.remove();
-      window.abrirChat?.(uid, nome);
+      fecharOverlay();
+      abrirChatSeguro(uid, nome);
     });
     overlay.querySelector('#perfil-add-btn')?.addEventListener('click', async () => {
       await window.enviarPedidoAmizade(uid, nome);
     });
     overlay.querySelector('#perfil-accept-btn')?.addEventListener('click', async () => {
       await aceitarPedido(user.id, uid);
-      overlay.remove();
+      fecharOverlay();
     });
     overlay.querySelector('#perfil-badges-btn')?.addEventListener('click', () => window.mostrarBadges?.());
   } catch (e) {
     console.error('[perfil] erro:', e);
-    overlay.remove();
+    fecharOverlay();
+    alerta('Não foi possível carregar o perfil. Tente novamente.');
   }
 };
+
 
 window.enviarPedidoAmizade = async function enviarPedidoAmizade(amigoId, nome = '') {
   try {
