@@ -1,6 +1,11 @@
 // js/game.js
 // ═══════════════════════════════════════════════════════════
 // SISTEMA DE JOGO — RANKING, LEITURA, MISSÕES — Supabase
+// Corrigido:
+// - pontos atualizam users.points e lastUpdate
+// - remove bug do canal auditoria duplicado
+// - evita canais realtime duplicados
+// - ranking continua em tempo real
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './config.js';
@@ -8,8 +13,7 @@ import {
     verificarBadges,
     verificarLivroCompleto,
     atualizarExpAposLeitura,
-    atualizarBarraExpMenu,
-    calcularExpELevel
+    atualizarBarraExpMenu
 } from './badges.js';
 
 // ── ESTADO ─────────────────────────────────────────────────
@@ -17,6 +21,9 @@ let processandoResposta = false;
 let rolagemMuitoRapida  = false;
 let ultimaPosicaoScroll = 0;
 let _rankingChannel     = null;
+let _auditoriaChannel   = null;
+let _auditoriaUid       = null;
+let saldoAnterior       = null;
 
 // ── ESTILOS ────────────────────────────────────────────────
 const style = document.createElement('style');
@@ -72,6 +79,70 @@ export function calcularNivel(pontos) {
     return 'Herói da Fé Eterno';
 }
 
+async function atualizarPontosDoUsuario(uid, pontosGanhos) {
+    const { data: userAtual, error: selectError } = await supabase
+        .from('users')
+        .select('points')
+        .eq('uid', uid)
+        .single();
+
+    if (selectError) throw selectError;
+
+    const novosPontos = (userAtual?.points || 0) + pontosGanhos;
+
+    const { error: updateError } = await supabase
+        .from('users')
+        .update({
+            points: novosPontos,
+            lastUpdate: new Date().toISOString()
+        })
+        .eq('uid', uid);
+
+    if (updateError) throw updateError;
+
+    return novosPontos;
+}
+
+function iniciarAuditoriaPontuacao(uid) {
+    if (!uid) return;
+
+    if (_auditoriaChannel) {
+        supabase.removeChannel(_auditoriaChannel);
+        _auditoriaChannel = null;
+    }
+
+    _auditoriaUid = uid;
+    saldoAnterior = null;
+
+    _auditoriaChannel = supabase
+        .channel('auditoria-' + uid)
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'users',
+                filter: `uid=eq.${uid}`
+            },
+            async (payload) => {
+                const saldoAtual = payload.new?.points || 0;
+
+                if (saldoAnterior !== null && saldoAtual > saldoAnterior) {
+                    const ganho = saldoAtual - saldoAnterior;
+
+                    await supabase.from('logs_pontuacao').insert({
+                        uid,
+                        pontos: ganho,
+                        data: new Date().toLocaleString('pt-BR')
+                    });
+                }
+
+                saldoAnterior = saldoAtual;
+            }
+        )
+        .subscribe();
+}
+
 // ── RANKING ────────────────────────────────────────────────
 const btnRanking = document.getElementById('nav-ranking');
 if (btnRanking) btnRanking.addEventListener('click', mostrarRanking);
@@ -106,13 +177,13 @@ async function mostrarRanking() {
             <button onclick="window.voltarParaBiblia()" class="btn-mission" style="margin-top:30px; width:100%; max-width:700px; display:block; margin-left:auto; margin-right:auto;">VOLTAR À LEITURA</button>
         </div>`;
 
-    // Cancela canal de realtime anterior
-    if (_rankingChannel) { supabase.removeChannel(_rankingChannel); _rankingChannel = null; }
+    if (_rankingChannel) {
+        supabase.removeChannel(_rankingChannel);
+        _rankingChannel = null;
+    }
 
-    // Carrega ranking inicial
     await _renderizarRanking();
 
-    // Escuta mudanças em tempo real
     _rankingChannel = supabase
         .channel('ranking-updates')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, () => {
@@ -135,6 +206,7 @@ async function _renderizarRanking() {
     if (!usuarios) return;
 
     let html = `<div style="max-width:700px; margin:0 auto;">`;
+
     usuarios.forEach((u, index) => {
         const isMe  = eu?.id === u.uid;
         const foto  = u.photoURL || gerarAvatarPadrao(u.name || '');
@@ -163,16 +235,20 @@ async function _renderizarRanking() {
                 </div>
             </div>`;
     });
+
     container.innerHTML = html + '</div>';
 }
 
 // ── VOLTAR PARA BÍBLIA ─────────────────────────────────────
 window.voltarParaBiblia = function () {
     document.body.classList.remove('modo-ranking-ativo');
-    document.body.style.backgroundImage    = '';
-    document.body.style.backgroundSize     = '';
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundSize = '';
     document.body.style.backgroundAttachment = '';
-    if (_rankingChannel) { supabase.removeChannel(_rankingChannel); _rankingChannel = null; }
+    if (_rankingChannel) {
+        supabase.removeChannel(_rankingChannel);
+        _rankingChannel = null;
+    }
     if (window.carregarListaLivros) window.carregarListaLivros();
 };
 
@@ -181,12 +257,12 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
     const container = document.getElementById('bible-text');
     if (!container) return;
 
-    rolagemMuitoRapida  = false;
+    rolagemMuitoRapida = false;
     ultimaPosicaoScroll = window.scrollY;
     let ultimaAtualizacao = Date.now();
 
     import('./bible.js').then(modulo => {
-        const livro    = modulo.bible[chaveLivro];
+        const livro = modulo.bible[chaveLivro];
         if (!livro) return alert('Livro não encontrado!');
         const capitulo = livro.capitulos[numeroCapitulo];
         if (!capitulo) return alert('Capítulo não encontrado!');
@@ -208,8 +284,8 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
             </div>`;
 
         const bgUrl = livro.background.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        document.body.style.backgroundImage    = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
-        document.body.style.backgroundSize     = 'cover';
+        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
+        document.body.style.backgroundSize = 'cover';
         document.body.style.backgroundAttachment = 'fixed';
 
         if (window._tratarScrollAtivo) {
@@ -223,18 +299,24 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
                 window._tratarScrollAtivo = null;
                 return;
             }
-            const agora        = Date.now();
+
+            const agora = Date.now();
             const posicaoAtual = window.scrollY;
-            const distancia    = Math.abs(posicaoAtual - ultimaPosicaoScroll);
-            const tempo        = agora - ultimaAtualizacao;
+            const distancia = Math.abs(posicaoAtual - ultimaPosicaoScroll);
+            const tempo = agora - ultimaAtualizacao;
+
             if (tempo > 0 && distancia / tempo > 3.0 && !rolagemMuitoRapida) {
                 rolagemMuitoRapida = true;
                 exibirAvisoMeditacao();
                 document.body.style.overflow = 'hidden';
-                setTimeout(() => { document.body.style.overflow = 'auto'; rolagemMuitoRapida = false; }, 3000);
+                setTimeout(() => {
+                    document.body.style.overflow = 'auto';
+                    rolagemMuitoRapida = false;
+                }, 3000);
             }
+
             ultimaPosicaoScroll = posicaoAtual;
-            ultimaAtualizacao   = agora;
+            ultimaAtualizacao = agora;
         };
 
         window._tratarScrollAtivo = tratarScroll;
@@ -246,7 +328,7 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
 // ── MISSÃO (QUIZ) ──────────────────────────────────────────
 window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
     import('./bible.js').then(modulo => {
-        const livro    = modulo.bible[chaveLivro];
+        const livro = modulo.bible[chaveLivro];
         if (!livro) return;
         const capitulo = livro.capitulos[numeroCapitulo];
         const pergunta = capitulo?.pergunta;
@@ -279,13 +361,15 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
     processandoResposta = true;
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { processandoResposta = false; return; }
+    if (!user) {
+        processandoResposta = false;
+        return;
+    }
 
     document.querySelectorAll('#bible-text button').forEach(btn => btn.disabled = true);
 
     if (ehCorreta) {
         try {
-            // Verifica se já concluído
             const { data: progExistente } = await supabase
                 .from('progresso')
                 .select('concluido')
@@ -298,11 +382,20 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
 
             if (jaConcluido) {
                 exibirFeedbackJaRealizado();
-                setTimeout(() => { processandoResposta = false; window.abrirLivro(livroChave); }, 3500);
+                setTimeout(() => {
+                    processandoResposta = false;
+                    window.abrirLivro(livroChave);
+                }, 3500);
             } else {
                 if (window.confetti) {
-                    window.confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#d4af37', '#ffffff', '#ffdf00'] });
+                    window.confetti({
+                        particleCount: 150,
+                        spread: 70,
+                        origin: { y: 0.6 },
+                        colors: ['#d4af37', '#ffffff', '#ffdf00']
+                    });
                 }
+
                 tocarSomFogos();
 
                 const divVitoria = document.createElement('div');
@@ -310,19 +403,24 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
                 divVitoria.innerHTML = `<h2>✨ PARABÉNS! ✨</h2><p>Você acertou +20 pontos</p><div style="font-size:0.9rem; color:#d4af37; margin-top:10px; letter-spacing:2px;">GLÓRIA AO SENHOR JESUS</div>`;
                 document.body.appendChild(divVitoria);
 
-                // Salva progresso + adiciona pontos atomicamente via upsert
                 await supabase.from('progresso').upsert({
-                    uid: user.id, livro: livroChave, capitulo: capNum,
-                    concluido: true, data: new Date().toISOString()
+                    uid: user.id,
+                    livro: livroChave,
+                    capitulo: capNum,
+                    concluido: true,
+                    data: new Date().toISOString()
                 }, { onConflict: 'uid,livro,capitulo' });
 
-                const { data: userAtual } = await supabase.from('users').select('points').eq('uid', user.id).single();
-                await supabase.from('users').update({ points: (userAtual?.points || 0) + 20 }).eq('uid', user.id);
+                await atualizarPontosDoUsuario(user.id, 20);
 
-                // EXP
                 const { data: progData } = await supabase
-                    .from('progresso').select('concluido').eq('uid', user.id).eq('concluido', true);
+                    .from('progresso')
+                    .select('concluido')
+                    .eq('uid', user.id)
+                    .eq('concluido', true);
+
                 const totalCaps = progData?.length || 0;
+
                 await atualizarExpAposLeitura(user.id, totalCaps);
                 atualizarBarraExpMenu(totalCaps);
 
@@ -346,9 +444,11 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
         overlay.style.cssText = `position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:99999; text-align:center; backdrop-filter:blur(8px);`;
         overlay.innerHTML = `<div style="font-size:5rem; margin-bottom:20px;">🛡️</div><div style="color:#d4af37; font-family:'Cinzel', serif; font-size:2.5rem; text-shadow:0 0 15px rgba(212,175,55,0.6);">ERROU!</div><p style="color:#fff; font-family:'Poppins', sans-serif; font-size:1.2rem; margin-top:15px;">Volte e medite no texto para encontrar a verdade...</p>`;
         document.body.appendChild(overlay);
+
         setTimeout(() => {
-            overlay.style.opacity    = '0';
+            overlay.style.opacity = '0';
             overlay.style.transition = 'opacity 0.8s';
+
             setTimeout(() => {
                 overlay.remove();
                 processandoResposta = false;
@@ -364,19 +464,29 @@ function tocarSomFogos() {
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const duration = 1.8;
-        const buf  = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+        const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
         const data = buf.getChannelData(0);
+
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        const noise  = ctx.createBufferSource(); noise.buffer = buf;
-        const filter = ctx.createBiquadFilter(); filter.type = 'lowpass';
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buf;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
         filter.frequency.setValueAtTime(1200, ctx.currentTime);
         filter.frequency.exponentialRampToValueAtTime(10, ctx.currentTime + duration);
+
         const gain = ctx.createGain();
         gain.gain.setValueAtTime(0.4, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-        noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-        noise.start(); noise.stop(ctx.currentTime + duration);
-    } catch (e) { /* áudio não disponível */ }
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        noise.start();
+        noise.stop(ctx.currentTime + duration);
+    } catch (_) {}
 }
 
 // ── FEEDBACK: JÁ REALIZADO ─────────────────────────────────
@@ -393,30 +503,40 @@ function exibirAvisoMeditacao() {
     aviso.style.cssText = `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid #d4af37; padding:30px; border-radius:15px; z-index:20000; text-align:center; box-shadow:0 0 30px #000; font-family:'Cinzel', serif;`;
     aviso.innerHTML = `<div style="font-size:3rem; margin-bottom:15px;">🕊️</div><h3 style="color:#d4af37; margin:0;">DEVAGAR, HERÓI!</h3><p style="color:#fff; font-size:1.1rem; margin-top:10px;">"Medite no texto amado e Jesus abençoa sua mente!"</p><div style="font-size:0.8rem; color:#888; margin-top:10px;">A sabedoria vale mais que os pontos.</div>`;
     document.body.appendChild(aviso);
+
     setTimeout(() => {
-        aviso.style.opacity    = '0';
+        aviso.style.opacity = '0';
         aviso.style.transition = 'opacity 0.5s';
         setTimeout(() => aviso.remove(), 500);
     }, 2500);
 }
 
 // ── AUDITORIA DE PONTOS via Realtime ──────────────────────
-let saldoAnterior = null;
-supabase.auth.onAuthStateChange(async (event, session) => {
-    if (!session?.user) { saldoAnterior = null; return; }
+supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (!session?.user) {
+        saldoAnterior = null;
+
+        if (_auditoriaChannel) {
+            supabase.removeChannel(_auditoriaChannel);
+            _auditoriaChannel = null;
+        }
+
+        _auditoriaUid = null;
+        return;
+    }
+
     const uid = session.user.id;
 
-    supabase
-        .channel('auditoria-' + uid)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `uid=eq.${uid}` }, async (payload) => {
-            const saldoAtual = payload.new?.points || 0;
-            if (saldoAnterior !== null && saldoAtual > saldoAnterior) {
-                const ganho = saldoAtual - saldoAnterior;
-                await supabase.from('logs_pontuacao').insert({ uid, pontos: ganho, data: new Date().toLocaleString('pt-BR') });
-            }
-            saldoAnterior = saldoAtual;
-        })
-        .subscribe();
+    if (_auditoriaUid === uid && _auditoriaChannel) return;
+
+    const { data: userData } = await supabase
+        .from('users')
+        .select('points')
+        .eq('uid', uid)
+        .single();
+
+    saldoAnterior = userData?.points || 0;
+    iniciarAuditoriaPontuacao(uid);
 });
 
 console.log('✅ Sistema de Jogo carregado!');
