@@ -213,17 +213,22 @@ function iniciarAuditoriaPontuacao(uid) {
 const btnRanking = document.getElementById('nav-ranking');
 if (btnRanking) btnRanking.addEventListener('click', mostrarRanking);
 
+const btnBiblia = document.getElementById('nav-biblia');
+if (btnBiblia) btnBiblia.addEventListener('click', () => {
+    window.voltarParaBiblia();
+});
 async function mostrarRanking() {
     const bibleText = document.getElementById('bible-text');
     const readingView = document.getElementById('reading-view');
 
     if (!bibleText || !readingView) return;
 
-    document.body.style.backgroundImage = '';
-    document.body.style.backgroundSize = '';
-    document.body.style.backgroundAttachment = '';
-    readingView.style.display = 'block';
-    document.body.classList.add('modo-ranking-ativo');
+ document.body.style.backgroundImage = '';
+document.body.style.backgroundSize = '';
+document.body.style.backgroundAttachment = '';
+readingView.style.display = 'block';
+window._paginaAtualJogo = 'ranking';
+document.body.classList.add('modo-ranking-ativo');
 
     bibleText.innerHTML = `
         <style>
@@ -384,21 +389,17 @@ async function _renderizarRanking() {
     container.innerHTML = html + '</div>';
 }
 
-// ── VOLTAR PARA BÍBLIA ─────────────────────────────────────
-// FIX: função única e robusta — não conflita com index.html
 window.voltarParaBiblia = function () {
     document.body.classList.remove('modo-ranking-ativo');
     document.body.style.backgroundImage = '';
     document.body.style.backgroundSize = '';
     document.body.style.backgroundAttachment = '';
 
-    // FIX: destrói canal do ranking ao sair
     if (_rankingChannel) {
         supabase.removeChannel(_rankingChannel);
         _rankingChannel = null;
     }
 
-    // FIX: limpa scroll listener ao navegar
     if (window._tratarScrollAtivo) {
         window.removeEventListener('scroll', window._tratarScrollAtivo);
         window._tratarScrollAtivo = null;
@@ -406,13 +407,17 @@ window.voltarParaBiblia = function () {
 
     window._paginaAtualJogo = 'biblia-home';
 
-    const rankingContainer = document.getElementById('ranking-container');
-    if (rankingContainer) rankingContainer.style.display = 'none';
-
     const readingView = document.getElementById('reading-view');
     if (readingView) readingView.style.display = 'block';
 
-    if (window.carregarListaLivros) window.carregarListaLivros();
+    const bibleText = document.getElementById('bible-text');
+    if (bibleText) {
+        bibleText.innerHTML = '';
+    }
+
+    if (window.carregarListaLivros) {
+        window.carregarListaLivros();
+    }
 };
 
 // ── EXIBIR CAPÍTULO ────────────────────────────────────────
