@@ -424,13 +424,11 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
                 // Atualiza EXP no banco
                 await atualizarExpAposLeitura(user.id, totalCaps);
 
-                // 🔥 FORÇA atualização VISUAL IMEDIATA
-                setTimeout(() => {
-                    atualizarBarraExpMenu(totalCaps);
-                }, 300);
+                // 🔥 FORÇA atualização VISUAL IMEDIATA com valor correto
+                atualizarBarraExpMenu(totalCaps);
 
-                // 🔥 GARANTE que o menu lateral também atualize
-                window.dispatchEvent(new Event('exp_atualizada'));
+                // 🔥 GARANTE que o menu lateral também atualize (passa o valor pelo evento)
+                window.dispatchEvent(new CustomEvent('exp_atualizada', { detail: { totalCaps } }));
 
                 await verificarLivroCompleto(user.id, livroChave);
                 await verificarBadges(user.id);

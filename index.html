@@ -506,18 +506,12 @@
             }
         });
 
-        window.addEventListener('exp_atualizada', async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { data: progData } = await supabase
-                .from('progresso')
-                .select('concluido')
-                .eq('uid', user.id)
-                .eq('concluido', true);
-
-            const totalCaps = progData?.length || 0;
-            atualizarBarraExpMenu(totalCaps);
+        window.addEventListener('exp_atualizada', (e) => {
+            // Usa o valor passado pelo evento (já calculado e correto)
+            const totalCaps = e.detail?.totalCaps;
+            if (totalCaps !== undefined) {
+                atualizarBarraExpMenu(totalCaps);
+            }
         });
 
         function esperarFuncao(nome, tentativas = 40) {
