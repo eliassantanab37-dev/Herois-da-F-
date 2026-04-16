@@ -1,45 +1,44 @@
+// js/chat.js
 import { supabase } from './config.js';
 
 let monitor = null;
 let roomChannel = null;
 let userStatusChannel = null;
-let activeChatKey = null;
-let enviarEmAndamento = false;
+let chatAbertoCom = null;
+let chatLoadToken = 0;
 
-const EMOJIS_PREMIUM = [
-  '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊',
-  '🙂','🙃','😍','🥰','😘','😗','😙','😚','🤗','🤩',
-  '😎','🥳','😇','🙏','🙌','👏','💪','🔥','✨','🌟',
-  '⚡','💛','🧡','❤️','💙','💚','🤍','🤎','💜','🖤',
-  '💖','💫','💎','👑','🏆','🎉','🎊','🎯','🎵','🎶',
-  '📖','📜','🕊️','⛪','✝️','🌿','🍞','🍇','🌈','☀️',
-  '🌙','⭐','🛡️','⚔️','🏹','🦁','🦅','🐑','🐟','🌊',
-  '🌻','🌺','🌹','🍀','🍃','☕','🍯','🍷','🥖','🫶',
-  '🤝','🤍','🤲','🫂','😌','🤔','🥹','😭','😴','🤭',
-  '🙈','🙌','🙋','🫡','💬','📩','🕯️','🪔','🪙','🏅'
+const EMOJIS_CHAT = [
+  '😀','😁','😂','🤣','😃','😄',
+  '😅','😆','😉','😊','😋','😎',
+  '😍','🥰','😘','😗','😙','😚',
+  '☺️','🙂','🙃','😇','🤩','🥳',
+  '😏','🧐','🤔','🫡','🤨','😐',
+  '😑','😶','🙄','😌','😴','😜',
+  '🤭','🥹','😭','😮','😢','😅',
+  '🤠','😵','🤯','😺','🙏','🙌',
+  '👏','👋','👍','👎','👊','👌',
+  '🤙','💪','🦾','🤝','🤞','🤟',
+  '🫶','🤲','🫂','🙋','☝️','👇',
+  '👆','👉','👈','❤️','🧡','💛',
+  '💚','💙','💜','🤎','🖤','🤍',
+  '💖','💝','✨','🔥','🌟','⭐',
+  '💫','💥','⚡','💯','⚔️','🛡️',
+  '🏹','🗡️','🪓','⛓️','⚒️','⚓',
+  '🔱','👑','💎','🏆','🏅','🥇',
+  '🪙','💰','🗝️','📜','📖','🕯️',
+  '🪔','🔔','📯','🎺','🏛️','⛪',
+  '✝️','🛐','🦁','🦅','🕊️','🐑',
+  '🐟','🐍','🐎','🐫','🐂','🌿',
+  '🍀','🍃','🌻','🌺','🌹','🌸',
+  '🌱','🌍','☀️','🌙','☁️','🌊',
+  '⛰️','🌈','💧','🍞','🥖','🍇',
+  '🍯','🍷','🍎','🌽','☕','🎉',
+  '🎊','🎯','🎁','🎶','🎵','💡',
+  '📍','📩','💬','✅','❗','🚀',
+  '🛸'
 ];
-
-function avatar(nome = '?') {
-  const ini = String(nome || '?')
-    .trim()
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || '?';
-
-  return `data:image/svg+xml;base64,${btoa(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="#d4a21e"/><text x="50%" y="54%" text-anchor="middle" font-family="Arial" font-size="86" font-weight="700" fill="#fff">${ini}</text></svg>`
-  )}`;
-}
-
-function online(user) {
-  const t = user?.lastUpdate || user?.lastupdate;
-  return !!(t && Date.now() - new Date(t).getTime() < 90000);
-}
-
-function escapeHtml(text = '') {
-  return String(text)
+function escapeHtml(texto = '') {
+  return String(texto)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -47,76 +46,58 @@ function escapeHtml(text = '') {
     .replaceAll("'", '&#39;');
 }
 
-function formatarHora(iso) {
-  try {
-    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
+function avatar(nome = '?') {
+  const ini = String(nome || '?')
+    .split(' ')
+    .map(p => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '?';
+
+  return `data:image/svg+xml;base64,${btoa(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+      <rect width="100%" height="100%" fill="#d4a21e"/>
+      <text x="50%" y="54%" text-anchor="middle" font-family="Arial" font-size="86" font-weight="700" fill="#fff">${ini}</text>
+    </svg>`
+  )}`;
+}
+
+function online(user) {
+  const t = user?.lastUpdate || user?.lastupdate;
+  return !!(t && (Date.now() - new Date(t).getTime() < 90000));
 }
 
 async function getMe() {
   const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return user || null;
 }
 
 async function getUser(uid) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('uid', uid)
-    .maybeSingle();
-
-  if (error) {
-    console.warn('[chat] erro ao buscar usuário:', error);
-  }
-
-  return data;
+  const { data } = await supabase.from('users').select('*').eq('uid', uid).single();
+  return data || null;
 }
 
-function closeSidebarIfOpen() {
-  try {
-    window.fecharSidebar?.();
-  } catch {}
-  document.body.classList.remove('menu-open');
+function getChatWindow() {
+  return document.getElementById('janela-chat');
 }
 
-async function removeChannelSafe(channel) {
-  if (!channel) return;
-  try {
-    await supabase.removeChannel(channel);
-  } catch (e) {
-    console.warn('[chat] erro ao remover canal:', e);
-  }
+function getChatMessagesBox() {
+  return document.getElementById('chat-messages');
 }
 
-async function cleanupChatChannels() {
-  await removeChannelSafe(roomChannel);
-  await removeChannelSafe(userStatusChannel);
-  roomChannel = null;
-  userStatusChannel = null;
+function chatEstaAbertoCom(uid) {
+  const win = getChatWindow();
+  return !!(win && chatAbertoCom && chatAbertoCom === uid);
 }
 
-function syncSendButton(win) {
-  const input = win?.querySelector('#chat-input');
-  const sendBtn = win?.querySelector('#chat-send');
-  if (!input || !sendBtn) return;
-
-  const hasText = !!input.value.trim();
-  sendBtn.disabled = !hasText || enviarEmAndamento;
+function removerToastsDoContato(uid) {
+  document.querySelectorAll(`.msg-toast[data-from-uid="${uid}"]`).forEach(el => el.remove());
 }
 
-function toggleEmojiPanel(forceState) {
-  const panel = document.getElementById('chat-emoji-panel');
-  const toggle = document.getElementById('chat-emoji-toggle');
-  if (!panel || !toggle) return;
-
-  const shouldOpen = typeof forceState === 'boolean'
-    ? forceState
-    : !panel.classList.contains('open');
-
-  panel.classList.toggle('open', shouldOpen);
-  toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+function scrollChatParaBaixo() {
+  const box = getChatMessagesBox();
+  if (!box) return;
+  box.scrollTop = box.scrollHeight;
 }
 
 async function marcarLidas(meuId, amigoId) {
@@ -137,7 +118,8 @@ async function marcarLidas(meuId, amigoId) {
 }
 
 async function carregarMensagens(meuId, amigoId) {
-  const box = document.getElementById('chat-messages');
+  const token = ++chatLoadToken;
+  const box = getChatMessagesBox();
   if (!box) return;
 
   const { data = [], error } = await supabase
@@ -148,98 +130,156 @@ async function carregarMensagens(meuId, amigoId) {
 
   if (error) {
     console.error('[chat] erro ao carregar mensagens:', error);
-    box.innerHTML = '<div class="chat-empty">Não foi possível carregar as mensagens.</div>';
     return;
   }
 
-  if (!data.length) {
-    box.innerHTML = `
-      <div class="chat-empty">
-        <div class="chat-empty-icon">💬</div>
-        <div class="chat-empty-title">Conversa iniciada</div>
-        <div class="chat-empty-text">Envie uma mensagem bonita para começar.</div>
-      </div>`;
-  } else {
-    box.innerHTML = '';
-    data.forEach((m) => {
-      const mine = m.de === meuId;
-      const wrap = document.createElement('div');
-      wrap.className = `msg-wrap ${mine ? 'mine' : 'other'}`;
-      wrap.innerHTML = `
-        <div class="msg-bubble-wrap">
-          <div class="msg-bubble">${escapeHtml(m.mensagem || '').replace(/\n/g, '<br>')}</div>
-          <div class="msg-meta">
-            <span class="msg-time">${formatarHora(m.createdat)}</span>
-            ${mine ? `<span class="msg-state">${m.lida ? '✓✓ lido' : '✓ enviado'}</span>` : ''}
-          </div>
-        </div>`;
-      box.appendChild(wrap);
-    });
-  }
+  if (token !== chatLoadToken) return;
 
-  box.scrollTop = box.scrollHeight;
+  const win = getChatWindow();
+  if (!win || chatAbertoCom !== amigoId) return;
+
+  box.innerHTML = '';
+
+  data.forEach(m => {
+    const mine = m.de === meuId;
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap ' + (mine ? 'mine' : 'other');
+
+    wrap.innerHTML = `
+      <div class="msg-bubble">${escapeHtml(m.mensagem || '')}</div>
+      ${mine ? `<div class="msg-state">${m.lida ? '✓✓ lido' : '✓ enviado'}</div>` : ''}
+    `;
+
+    box.appendChild(wrap);
+  });
+
+  scrollChatParaBaixo();
   await marcarLidas(meuId, amigoId);
 }
 
-function montarEmojiGrid(win) {
-  const grid = win.querySelector('#chat-emoji-grid');
-  const input = win.querySelector('#chat-input');
-  if (!grid || !input) return;
+function montarPainelEmoji(win) {
+  const panel = win.querySelector('#chat-emoji-panel');
+  if (!panel) return;
 
-  grid.innerHTML = '';
-  EMOJIS_PREMIUM.forEach((emoji) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chat-emoji-item';
-    btn.textContent = emoji;
-    btn.setAttribute('aria-label', `Inserir ${emoji}`);
+  panel.innerHTML = EMOJIS_CHAT.map(e => {
+    return `<button type="button" class="chat-emoji-item" data-emoji="${e}">${e}</button>`;
+  }).join('');
+
+  panel.querySelectorAll('.chat-emoji-item').forEach(btn => {
     btn.addEventListener('click', () => {
-      const start = input.selectionStart ?? input.value.length;
-      const end = input.selectionEnd ?? input.value.length;
-      const before = input.value.slice(0, start);
-      const after = input.value.slice(end);
-      input.value = `${before}${emoji}${after}`;
+      const input = win.querySelector('#chat-input');
+      if (!input) return;
+      input.value += btn.dataset.emoji || '';
       input.focus();
-      const cursor = start + emoji.length;
-      input.setSelectionRange(cursor, cursor);
-      syncSendButton(win);
     });
-    grid.appendChild(btn);
   });
 }
 
-async function enviarMensagem(win, me, amigoId) {
-  const input = win.querySelector('#chat-input');
-  const sendBtn = win.querySelector('#chat-send');
-  if (!input || !sendBtn) return;
+function togglePainelEmoji(win, forceOpen = null) {
+  const panel = win.querySelector('#chat-emoji-panel');
+  if (!panel) return;
 
-  const texto = input.value.trim();
-  if (!texto || enviarEmAndamento) return;
+  const abrir = forceOpen === null ? panel.classList.contains('hidden') : !!forceOpen;
+  panel.classList.toggle('hidden', !abrir);
+}
 
-  enviarEmAndamento = true;
-  syncSendButton(win);
-  sendBtn.classList.add('is-sending');
+window.abrirChat = async function (amigoId, nome = '') {
+  document.getElementById('perfil-detalhado')?.remove();
+  document.getElementById('janela-chat')?.remove();
 
-  try {
+  if (roomChannel) {
+    supabase.removeChannel(roomChannel);
+    roomChannel = null;
+  }
+
+  if (userStatusChannel) {
+    supabase.removeChannel(userStatusChannel);
+    userStatusChannel = null;
+  }
+
+  const me = await getMe();
+  if (!me) return;
+
+  const amigo = await getUser(amigoId);
+  const nomeAmigo = amigo?.name || nome || 'Amigo';
+  const foto = amigo?.photoURL || amigo?.photourl || avatar(nomeAmigo);
+
+  chatAbertoCom = amigoId;
+  removerToastsDoContato(amigoId);
+
+  const win = document.createElement('div');
+  win.id = 'janela-chat';
+  win.className = 'chat-window';
+  win.innerHTML = `
+    <div class="chat-top">
+      <button class="chat-back" type="button">←</button>
+      <img class="chat-avatar" src="${foto}" alt="${escapeHtml(nomeAmigo)}">
+      <div class="chat-head">
+        <strong>${escapeHtml(nomeAmigo)}</strong>
+        <span id="chat-status">${online(amigo) ? 'Online' : 'Offline'}</span>
+      </div>
+    </div>
+
+    <div id="chat-messages" class="chat-messages"></div>
+
+    <div class="chat-actions-bar">
+      <button id="chat-emoji-toggle" class="chat-action-btn" type="button" title="Emojis">😊</button>
+    </div>
+
+    <div id="chat-emoji-panel" class="chat-emoji-panel hidden"></div>
+
+    <div class="chat-bottom">
+      <input id="chat-input" placeholder="Digite sua mensagem" autocomplete="off">
+      <button id="chat-send" type="button">➤</button>
+    </div>
+  `;
+
+  document.body.appendChild(win);
+
+  montarPainelEmoji(win);
+
+  win.querySelector('.chat-back')?.addEventListener('click', () => window.fecharChatAtivo());
+
+  win.querySelector('#chat-emoji-toggle')?.addEventListener('click', () => {
+    togglePainelEmoji(win);
+  });
+
+  win.querySelector('#chat-messages')?.addEventListener('click', () => {
+    togglePainelEmoji(win, false);
+  });
+
+  await carregarMensagens(me.id, amigoId);
+
+  async function enviar() {
+    const input = win.querySelector('#chat-input');
+    const texto = input?.value.trim();
+    if (!texto) return;
+
     input.value = '';
+    togglePainelEmoji(win, false);
+
+    const agora = new Date().toISOString();
 
     const { error: msgError } = await supabase.from('mensagens').insert({
       de: me.id,
       para: amigoId,
       mensagem: texto,
       lida: false,
-      createdat: new Date().toISOString(),
+      createdat: agora
     });
 
-    if (msgError) throw msgError;
+    if (msgError) {
+      console.error('[chat] erro ao enviar mensagem:', msgError);
+      return;
+    }
 
     const { error: notifError } = await supabase.from('notificacoes').insert({
       to_uid: amigoId,
       from_uid: me.id,
       tipo: 'mensagem',
-      mensagem: texto.slice(0, 60),
+      mensagem: texto.slice(0, 120),
       lida: false,
-      created_at: new Date().toISOString(),
+      created_at: agora
     });
 
     if (notifError) {
@@ -247,179 +287,121 @@ async function enviarMensagem(win, me, amigoId) {
     }
 
     await carregarMensagens(me.id, amigoId);
-  } catch (e) {
-    console.error('[chat] erro ao enviar:', e);
-    alert('Não foi possível enviar sua mensagem agora.');
-  } finally {
-    enviarEmAndamento = false;
-    sendBtn.classList.remove('is-sending');
-    syncSendButton(win);
-    input.focus();
   }
-}
 
-window.abrirChat = async function abrirChat(amigoId, nome = '') {
-  document.getElementById('perfil-detalhado')?.remove();
-  document.getElementById('janela-chat')?.remove();
-  closeSidebarIfOpen();
-  await cleanupChatChannels();
+  win.querySelector('#chat-send')?.addEventListener('click', enviar);
 
-  const me = await getMe();
-  if (!me) return;
-
-  const amigo = await getUser(amigoId);
-  const amigoNome = amigo?.name || nome || 'Amigo';
-  const foto = amigo?.photoURL || amigo?.photourl || avatar(amigoNome);
-  activeChatKey = `${[me.id, amigoId].sort().join('-')}`;
-
-  const win = document.createElement('div');
-  win.id = 'janela-chat';
-  win.className = 'chat-window';
-  win.innerHTML = `
-    <div class="chat-glow"></div>
-    <div class="chat-top">
-      <button type="button" class="chat-back" aria-label="Voltar">←</button>
-      <img class="chat-avatar" src="${foto}" alt="Avatar de ${escapeHtml(amigoNome)}" onerror="this.src='${avatar(amigoNome)}'">
-      <div class="chat-head">
-        <strong>${escapeHtml(amigoNome)}</strong>
-        <span id="chat-status" class="${online(amigo) ? 'online' : 'offline'}">${online(amigo) ? 'Online' : 'Offline'}</span>
-      </div>
-    </div>
-
-    <div id="chat-messages" class="chat-messages">
-      <div class="chat-empty">
-        <div class="chat-empty-icon">✨</div>
-        <div class="chat-empty-title">Carregando conversa...</div>
-      </div>
-    </div>
-
-    <div class="chat-composer-shell">
-      <div class="chat-toolbar">
-        <button type="button" id="chat-emoji-toggle" class="chat-emoji-toggle" aria-expanded="false" aria-label="Abrir emojis">😊</button>
-      </div>
-
-      <div id="chat-emoji-panel" class="chat-emoji-panel" aria-hidden="true">
-        <div class="chat-emoji-panel-head">
-          <span>Emojis</span>
-          <small>${EMOJIS_PREMIUM.length} opções</small>
-        </div>
-        <div id="chat-emoji-grid" class="chat-emoji-grid"></div>
-      </div>
-
-      <div class="chat-bottom">
-        <div class="chat-input-wrap">
-          <input id="chat-input" maxlength="500" placeholder="Digite sua mensagem" autocomplete="off">
-        </div>
-        <button type="button" id="chat-send" class="chat-send" aria-label="Enviar mensagem" disabled>
-          <span class="chat-send-icon">➤</span>
-        </button>
-      </div>
-    </div>`;
-
-  document.body.appendChild(win);
-
-  const input = win.querySelector('#chat-input');
-  const sendBtn = win.querySelector('#chat-send');
-  const emojiToggle = win.querySelector('#chat-emoji-toggle');
-
-  montarEmojiGrid(win);
-
-  win.querySelector('.chat-back')?.addEventListener('click', () => window.fecharChatAtivo());
-  emojiToggle?.addEventListener('click', () => toggleEmojiPanel());
-  document.addEventListener('click', handleOutsideEmojiClick, true);
-
-  input?.addEventListener('input', () => syncSendButton(win));
-  input?.addEventListener('focus', () => syncSendButton(win));
-  input?.addEventListener('keydown', async (e) => {
-    if (e.key === 'Escape') toggleEmojiPanel(false);
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      await enviarMensagem(win, me, amigoId);
-    }
+  win.querySelector('#chat-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') enviar();
   });
-
-  sendBtn?.addEventListener('click', async () => {
-    await enviarMensagem(win, me, amigoId);
-  });
-
-  await carregarMensagens(me.id, amigoId);
-  syncSendButton(win);
 
   roomChannel = supabase
-    .channel(`room-${activeChatKey}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, async (payload) => {
-      const row = payload.new || payload.old;
-      if (!row) return;
-      const ok = (row.de === me.id && row.para === amigoId) || (row.de === amigoId && row.para === me.id);
-      if (ok && document.getElementById('janela-chat')) {
+    .channel('room-' + [me.id, amigoId].sort().join('-'))
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'mensagens' },
+      async (payload) => {
+        const r = payload.new || payload.old;
+        if (!r) return;
+
+        const ok =
+          (r.de === me.id && r.para === amigoId) ||
+          (r.de === amigoId && r.para === me.id);
+
+        if (!ok) return;
+        if (!chatEstaAbertoCom(amigoId)) return;
+
         await carregarMensagens(me.id, amigoId);
       }
-    })
+    )
     .subscribe();
 
   userStatusChannel = supabase
-    .channel(`chat-user-${amigoId}`)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'users',
-      filter: `uid=eq.${amigoId}`,
-    }, (payload) => {
-      const el = document.getElementById('chat-status');
-      if (!el) return;
-      const on = online(payload.new);
-      el.textContent = on ? 'Online' : 'Offline';
-      el.classList.toggle('online', on);
-      el.classList.toggle('offline', !on);
-    })
+    .channel('chat-user-' + amigoId)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'users',
+        filter: `uid=eq.${amigoId}`
+      },
+      (payload) => {
+        const el = document.getElementById('chat-status');
+        if (el) el.textContent = online(payload.new) ? 'Online' : 'Offline';
+      }
+    )
     .subscribe();
-
-  setTimeout(() => input?.focus(), 40);
 };
 
-function handleOutsideEmojiClick(e) {
-  const panel = document.getElementById('chat-emoji-panel');
-  const toggle = document.getElementById('chat-emoji-toggle');
-  if (!panel || !toggle) return;
-  if (panel.contains(e.target) || toggle.contains(e.target)) return;
-  toggleEmojiPanel(false);
-}
-
-window.fecharChatAtivo = async function fecharChatAtivo() {
-  document.removeEventListener('click', handleOutsideEmojiClick, true);
+window.fecharChatAtivo = function () {
   document.getElementById('janela-chat')?.remove();
-  enviarEmAndamento = false;
-  activeChatKey = null;
-  await cleanupChatChannels();
+  chatAbertoCom = null;
+  chatLoadToken++;
+
+  if (roomChannel) {
+    supabase.removeChannel(roomChannel);
+    roomChannel = null;
+  }
+
+  if (userStatusChannel) {
+    supabase.removeChannel(userStatusChannel);
+    userStatusChannel = null;
+  }
 };
 
 export function iniciarMonitorChat(user) {
-  if (monitor) supabase.removeChannel(monitor);
+  if (monitor) {
+    supabase.removeChannel(monitor);
+    monitor = null;
+  }
+
   if (!user) return;
 
   monitor = supabase
-    .channel(`monitor-notif-${user.id}`)
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'notificacoes',
-      filter: `to_uid=eq.${user.id}`,
-    }, async (payload) => {
-      const n = payload.new;
-      if (!n || n.lida || (n.tipo || '') !== 'mensagem') return;
+    .channel('monitor-notif-' + user.id)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notificacoes',
+        filter: `to_uid=eq.${user.id}`
+      },
+      async (payload) => {
+        const n = payload.new;
+        if (!n || n.lida) return;
+        if ((n.tipo || '') !== 'mensagem') return;
 
-      const from = await getUser(n.from_uid);
-      const box = document.createElement('div');
-      box.className = 'msg-toast';
-      box.innerHTML = `
-        <div class="msg-toast-title">✉ Nova mensagem</div>
-        <div class="msg-toast-body">${escapeHtml(from?.name || 'Amigo')}: ${escapeHtml(n.mensagem || '')}</div>`;
-      box.addEventListener('click', async () => {
-        box.remove();
-        await window.abrirChat(n.from_uid, from?.name || 'Amigo');
-      });
-      document.body.appendChild(box);
-      setTimeout(() => box.remove(), 8000);
-    })
+        const from = await getUser(n.from_uid);
+        const nomeFrom = from?.name || 'Amigo';
+
+        // FIX: se o chat já estiver aberto com essa pessoa,
+        // atualiza a conversa por dentro e NÃO mostra toast fora.
+        if (chatEstaAbertoCom(n.from_uid)) {
+          await carregarMensagens(user.id, n.from_uid);
+          removerToastsDoContato(n.from_uid);
+          return;
+        }
+
+        removerToastsDoContato(n.from_uid);
+
+        const box = document.createElement('div');
+        box.className = 'msg-toast';
+        box.dataset.fromUid = n.from_uid;
+        box.innerHTML = `
+          <div class="msg-toast-title">✉ Msg</div>
+          <div class="msg-toast-body">${escapeHtml(nomeFrom)}: ${escapeHtml(n.mensagem || '')}</div>
+        `;
+
+        box.addEventListener('click', () => {
+          box.remove();
+          window.abrirChat(n.from_uid, nomeFrom);
+        });
+
+        document.body.appendChild(box);
+        setTimeout(() => box.remove(), 8000);
+      }
+    )
     .subscribe();
 }
