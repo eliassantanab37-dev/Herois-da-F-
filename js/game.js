@@ -519,10 +519,17 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
             </div>
         `;
 
-        const bgUrl = livro.background.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundAttachment = 'fixed';
+        const bgRaw = livro.background || '';
+        const bgUrl = bgRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (bgUrl) {
+            document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundAttachment = 'fixed';
+        } else {
+            document.body.style.backgroundImage = '';
+            document.body.style.backgroundSize = '';
+            document.body.style.backgroundAttachment = '';
+        }
 
         // FIX: cria scroll listener com referência limpa
         const tratarScroll = () => {
