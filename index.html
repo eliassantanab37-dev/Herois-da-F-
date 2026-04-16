@@ -186,6 +186,7 @@
     let realtimeMenuChannel = null;
     let inicializandoUid = null;
     let appPronto = false;
+    let bootstrapSessaoConcluido = false;
     window._paginaAtualJogo = 'biblia-home';
 
     function mostrarTelaLogin() {
@@ -208,11 +209,17 @@
 
     function aplicarResumoMenu(userData) {
       if (!userData) return;
-      if (pointsEl) pointsEl.textContent = `${userData.points || 0} pts`;
-      if (nivelNum) nivelNum.textContent = `${userData.nivel || 1}`;
+      const pontos = Number(userData.points || 0);
+      const nivel = Number(userData.nivel || 1);
       const ev = userData.expAtual ?? userData.expatual ?? 0;
+
+      if (pointsEl) pointsEl.textContent = `${pontos} pts`;
+      if (nivelNum) nivelNum.textContent = `${nivel}`;
       if (expTexto) expTexto.textContent = `${ev}%`;
       if (expBar) expBar.style.width = `${ev}%`;
+
+      const headerPoints = document.querySelector('#user-header-info .top-user-text span');
+      if (headerPoints) headerPoints.textContent = `${pontos} pts`;
     }
 
     function limparSobreposicoesUI() {
@@ -226,8 +233,12 @@
     async function atualizarMenuUsuario(uid) {
       const { data: userData } = await supabase.from('users').select('*').eq('uid', uid).single();
       aplicarResumoMenu(userData);
-      const { data: progData } = await supabase.from('progresso').select('concluido').eq('uid', uid).eq('concluido', true);
-      atualizarBarraExpMenu(progData?.length || 0);
+      const { count } = await supabase
+        .from('progresso')
+        .select('id', { count: 'exact', head: true })
+        .eq('uid', uid)
+        .eq('concluido', true);
+      atualizarBarraExpMenu(typeof count === 'number' ? count : 0);
     }
 
     async function destruirEstadoUsuario() {
@@ -316,6 +327,7 @@
     }
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!bootstrapSessaoConcluido) return;
       const user = session?.user ?? null;
       if (user) {
         await inicializarUsuario(user);
@@ -330,6 +342,7 @@
     } else {
       await destruirEstadoUsuario();
     }
+    bootstrapSessaoConcluido = true;
 
     window.addEventListener('exp_atualizada', (e) => {
       const totalCaps = e.detail?.totalCaps;

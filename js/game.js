@@ -162,17 +162,22 @@ async function atualizarPontosDoUsuario(uid, pontosGanhos) {
     if (selectError) throw selectError;
 
     const novosPontos = (userAtual?.points || 0) + pontosGanhos;
+    const agoraIso = new Date().toISOString();
 
     const { error: updateError } = await supabase
         .from('users')
         .update({
             points: novosPontos,
-            lastUpdate: new Date().toISOString(),
-            lastupdate: new Date().toISOString()
+            lastUpdate: agoraIso,
+            lastupdate: agoraIso
         })
         .eq('uid', uid);
 
     if (updateError) throw updateError;
+
+    window.dispatchEvent(new CustomEvent('pontos_atualizados', {
+        detail: { uid, pontos: novosPontos }
+    }));
 
     return novosPontos;
 }
@@ -209,7 +214,7 @@ function iniciarAuditoriaPontuacao(uid) {
                         await supabase.from('logs_pontuacao').insert({
                             uid,
                             pontos: ganho,
-                            data: new Date().toLocaleString('pt-BR')
+                            created_at: new Date().toISOString()
                         });
                     } catch (e) {
                         console.warn('[auditoria] erro ao salvar log:', e);

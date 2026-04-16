@@ -94,7 +94,19 @@ export async function atualizarProgressoDesafio(desafioId, valor = 1) {
 
         if (concluido) {
             const { data: u } = await supabase.from('users').select('points').eq('uid', user.id).single();
-            await supabase.from('users').update({ points: (u?.points || 0) + desafio.recompensa }).eq('uid', user.id);
+            const pontosAtualizados = (u?.points || 0) + desafio.recompensa;
+            const agoraIso = new Date().toISOString();
+
+            await supabase.from('users').update({
+                points: pontosAtualizados,
+                lastUpdate: agoraIso,
+                lastupdate: agoraIso
+            }).eq('uid', user.id);
+
+            window.dispatchEvent(new CustomEvent('pontos_atualizados', {
+                detail: { uid: user.id, pontos: pontosAtualizados }
+            }));
+
             _dispararFogos();
             _mostrarMensagem(`🎉 Desafio completo! +${desafio.recompensa} pts!`);
         }

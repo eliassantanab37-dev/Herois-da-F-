@@ -193,9 +193,22 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
             novosBadges[key] = { desbloqueado: true, data: Date.now() };
         }
 
+        const { data: pontosAtuaisRow, error: pontosAtuaisError } = await supabase
+            .from('users')
+            .select('points')
+            .eq('uid', uid)
+            .single();
+
+        if (pontosAtuaisError) throw pontosAtuaisError;
+
+        const pontosAtualizados = (pontosAtuaisRow?.points || 0) + totalPontos;
+        const agoraIso = new Date().toISOString();
+
         await supabase.from('users').update({
             badges: novosBadges,
-            points: (userData?.points || 0) + totalPontos
+            points: pontosAtualizados,
+            lastUpdate: agoraIso,
+            lastupdate: agoraIso
         }).eq('uid', uid);
 
         for (const [key, badge] of novos) {
@@ -205,7 +218,9 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
         // O canal realtime do index.html já cuida de atualizar pontos, nível,
         // header e barra de EXP automaticamente após o update no banco.
         // Dispara evento extra para garantir atualização imediata da EXP local.
-        window.dispatchEvent(new CustomEvent('pontos_atualizados', { detail: { uid } }));
+        window.dispatchEvent(new CustomEvent('pontos_atualizados', {
+            detail: { uid, pontos: pontosAtualizados }
+        }));
     } catch (e) {
         console.error('Erro verificarBadges:', e);
     }
