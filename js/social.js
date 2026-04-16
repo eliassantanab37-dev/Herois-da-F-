@@ -12,7 +12,7 @@ let chFriends = null;
 let chNotif = null;
 let heartbeatTimer = null;
 let _meuUid = null;
-let _inputBuscaVinculado = null;
+
 
 let _perfilRequestId = 0;
 
@@ -272,7 +272,7 @@ export function iniciarSocial(user) {
     )
     .on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'users' },
+      { event: 'UPDATE', schema: 'public', table: 'users', filter: `uid=eq.${user.id}` },
       () => recarregarSidebar(user.id)
     )
     .subscribe();
@@ -473,16 +473,26 @@ function statusRelacionamento(rows, meuUid, outroUid) {
   return 'none';
 }
 
+function escapeLike(termo) {
+  // Escapa caracteres especiais do ilike para evitar queries quebradas
+  return termo.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 function initBusca(meuUid) {
   const input = elInput();
   const resultados = elResultados();
   if (!input || !resultados) return;
 
-  if (_inputBuscaVinculado === input) return;
-  _inputBuscaVinculado = input;
+  // Usa atributo no elemento para evitar duplicar listeners mesmo se
+  // initBusca for chamada várias vezes (sidebar fecha/abre, reload social, etc.)
+  if (input.dataset.buscaUid === meuUid) return;
+  input.dataset.buscaUid = meuUid;
+
   input.placeholder = 'Buscar amigo';
 
   let debounceTimer = null;
+  // Contador de request: só renderiza o resultado da última busca disparada
+  let buscaSeq = 0;
 
   input.addEventListener('input', () => {
     clearTimeout(debounceTimer);
@@ -494,14 +504,22 @@ function initBusca(meuUid) {
     }
 
     debounceTimer = setTimeout(async () => {
+      // Captura o seq desta busca antes de qualquer await
+      const seq = ++buscaSeq;
+
       try {
+        const termoSeguro = escapeLike(termo);
+
         const [encontradosResp, relResp] = await Promise.all([
-          supabase.from('users').select('*').ilike('name', `%${termo}%`).limit(20),
+          supabase.from('users').select('*').ilike('name', `%${termoSeguro}%`).limit(20),
           supabase
             .from('friends')
             .select('uid, friend_uid, status')
             .or(`uid.eq.${meuUid},friend_uid.eq.${meuUid}`),
         ]);
+
+        // Se já foi disparada uma busca mais nova, descarta este resultado
+        if (seq !== buscaSeq) return;
 
         if (encontradosResp.error) throw encontradosResp.error;
         if (relResp.error) throw relResp.error;
@@ -555,9 +573,11 @@ function initBusca(meuUid) {
             resultados.appendChild(card);
           });
       } catch (e) {
-        console.warn('[busca] erro:', e);
+        if (seq === buscaSeq) {
+          console.warn('[busca] erro:', e);
+        }
       }
-    }, 300);
+    }, 320);
   });
 }
 

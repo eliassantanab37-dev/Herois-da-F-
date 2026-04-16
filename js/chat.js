@@ -6,37 +6,21 @@ let roomChannel = null;
 let userStatusChannel = null;
 let chatAbertoCom = null;
 let chatLoadToken = 0;
+let chatOutsideClickHandler = null;
 
 const EMOJIS_CHAT = [
-  '😀','😁','😂','🤣','😃','😄',
-  '😅','😆','😉','😊','😋','😎',
-  '😍','🥰','😘','😗','😙','😚',
-  '☺️','🙂','🙃','😇','🤩','🥳',
-  '😏','🧐','🤔','🫡','🤨','😐',
-  '😑','😶','🙄','😌','😴','😜',
-  '🤭','🥹','😭','😮','😢','😅',
-  '🤠','😵','🤯','😺','🙏','🙌',
-  '👏','👋','👍','👎','👊','👌',
-  '🤙','💪','🦾','🤝','🤞','🤟',
-  '🫶','🤲','🫂','🙋','☝️','👇',
-  '👆','👉','👈','❤️','🧡','💛',
-  '💚','💙','💜','🤎','🖤','🤍',
-  '💖','💝','✨','🔥','🌟','⭐',
-  '💫','💥','⚡','💯','⚔️','🛡️',
-  '🏹','🗡️','🪓','⛓️','⚒️','⚓',
-  '🔱','👑','💎','🏆','🏅','🥇',
-  '🪙','💰','🗝️','📜','📖','🕯️',
-  '🪔','🔔','📯','🎺','🏛️','⛪',
-  '✝️','🛐','🦁','🦅','🕊️','🐑',
-  '🐟','🐍','🐎','🐫','🐂','🌿',
-  '🍀','🍃','🌻','🌺','🌹','🌸',
-  '🌱','🌍','☀️','🌙','☁️','🌊',
-  '⛰️','🌈','💧','🍞','🥖','🍇',
-  '🍯','🍷','🍎','🌽','☕','🎉',
-  '🎊','🎯','🎁','🎶','🎵','💡',
-  '📍','📩','💬','✅','❗','🚀',
-  '🛸'
+  '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊',
+  '😋','😎','😍','🥰','😘','😗','😙','😚','☺️','🙂',
+  '🙃','😇','🤩','🥳','😏','🧐','🤔','🫡','🤨','😐',
+  '😑','😶','🙄','😌','😴','😜','🤭','🥹','😭','😮',
+  '😢','🤠','😵','🤯','😺','🙏','🙌','👏','👋','👍',
+  '👎','👊','👌','🤙','💪','🦾','🤝','🤞','🤟','🫶',
+  '🤲','🫂','🙋','☝️','👇','👆','👉','👈','❤️','🧡',
+  '💛','💚','💙','💜','🤎','🖤','🤍','💖','💝','✨',
+  '🔥','🌟','⭐','💫','💥','⚡','💯','⚔️','🛡️','🏹',
+  '🗡️','🪓','⚒️','🔱','👑','💎','🏆','📜','📖','🕊️'
 ];
+
 function escapeHtml(texto = '') {
   return String(texto)
     .replaceAll('&', '&amp;')
@@ -49,7 +33,7 @@ function escapeHtml(texto = '') {
 function avatar(nome = '?') {
   const ini = String(nome || '?')
     .split(' ')
-    .map(p => p[0])
+    .map((p) => p[0])
     .join('')
     .slice(0, 2)
     .toUpperCase() || '?';
@@ -65,6 +49,10 @@ function avatar(nome = '?') {
 function online(user) {
   const t = user?.lastUpdate || user?.lastupdate;
   return !!(t && (Date.now() - new Date(t).getTime() < 90000));
+}
+
+function statusClass(user) {
+  return online(user) ? 'online' : 'offline';
 }
 
 async function getMe() {
@@ -91,13 +79,50 @@ function chatEstaAbertoCom(uid) {
 }
 
 function removerToastsDoContato(uid) {
-  document.querySelectorAll(`.msg-toast[data-from-uid="${uid}"]`).forEach(el => el.remove());
+  document.querySelectorAll(`.msg-toast[data-from-uid="${uid}"]`).forEach((el) => el.remove());
 }
 
 function scrollChatParaBaixo() {
   const box = getChatMessagesBox();
   if (!box) return;
   box.scrollTop = box.scrollHeight;
+}
+
+function fecharPainelEmoji(win) {
+  const panel = win?.querySelector('#chat-emoji-panel');
+  if (!panel) return;
+  panel.classList.add('hidden');
+}
+
+function alternarPainelEmoji(win) {
+  const panel = win?.querySelector('#chat-emoji-panel');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+}
+
+function configurarCliqueFora(win) {
+  if (chatOutsideClickHandler) {
+    document.removeEventListener('click', chatOutsideClickHandler, true);
+    chatOutsideClickHandler = null;
+  }
+
+  chatOutsideClickHandler = (e) => {
+    const panel = win?.querySelector('#chat-emoji-panel');
+    const toggle = win?.querySelector('#chat-emoji-toggle');
+    if (!panel || !toggle) return;
+    if (panel.classList.contains('hidden')) return;
+    if (panel.contains(e.target) || toggle.contains(e.target)) return;
+    fecharPainelEmoji(win);
+  };
+
+  document.addEventListener('click', chatOutsideClickHandler, true);
+}
+
+function limparCliqueFora() {
+  if (chatOutsideClickHandler) {
+    document.removeEventListener('click', chatOutsideClickHandler, true);
+    chatOutsideClickHandler = null;
+  }
 }
 
 async function marcarLidas(meuId, amigoId) {
@@ -138,16 +163,31 @@ async function carregarMensagens(meuId, amigoId) {
   const win = getChatWindow();
   if (!win || chatAbertoCom !== amigoId) return;
 
+  if (!data.length) {
+    box.innerHTML = `
+      <div class="chat-empty">
+        <div class="chat-empty-icon">💬</div>
+        <div class="chat-empty-title">Conversa iniciada</div>
+        <div class="chat-empty-text">Envie uma mensagem e comece esse momento especial da jornada.</div>
+      </div>
+    `;
+    return;
+  }
+
   box.innerHTML = '';
 
-  data.forEach(m => {
+  data.forEach((m) => {
     const mine = m.de === meuId;
     const wrap = document.createElement('div');
     wrap.className = 'msg-wrap ' + (mine ? 'mine' : 'other');
 
     wrap.innerHTML = `
-      <div class="msg-bubble">${escapeHtml(m.mensagem || '')}</div>
-      ${mine ? `<div class="msg-state">${m.lida ? '✓✓ lido' : '✓ enviado'}</div>` : ''}
+      <div class="msg-bubble-wrap">
+        <div class="msg-bubble">${escapeHtml(m.mensagem || '').replace(/\n/g, '<br>')}</div>
+        <div class="msg-meta">
+          ${mine ? `<span class="msg-state">${m.lida ? '✓✓ lido' : '✓ enviado'}</span>` : ''}
+        </div>
+      </div>
     `;
 
     box.appendChild(wrap);
@@ -161,26 +201,35 @@ function montarPainelEmoji(win) {
   const panel = win.querySelector('#chat-emoji-panel');
   if (!panel) return;
 
-  panel.innerHTML = EMOJIS_CHAT.map(e => {
-    return `<button type="button" class="chat-emoji-item" data-emoji="${e}">${e}</button>`;
+  const botoes = EMOJIS_CHAT.map((emoji) => {
+    return `<button type="button" class="chat-emoji-item" data-emoji="${emoji}" aria-label="Inserir ${emoji}">${emoji}</button>`;
   }).join('');
 
-  panel.querySelectorAll('.chat-emoji-item').forEach(btn => {
+  panel.innerHTML = `
+    <div class="chat-emoji-panel-head">
+      <span>Emojis</span>
+      <small>${EMOJIS_CHAT.length} opções</small>
+    </div>
+    <div class="chat-emoji-grid">${botoes}</div>
+  `;
+
+  panel.querySelectorAll('.chat-emoji-item').forEach((btn) => {
     btn.addEventListener('click', () => {
       const input = win.querySelector('#chat-input');
       if (!input) return;
       input.value += btn.dataset.emoji || '';
+      input.dispatchEvent(new Event('input'));
       input.focus();
     });
   });
 }
 
-function togglePainelEmoji(win, forceOpen = null) {
-  const panel = win.querySelector('#chat-emoji-panel');
-  if (!panel) return;
-
-  const abrir = forceOpen === null ? panel.classList.contains('hidden') : !!forceOpen;
-  panel.classList.toggle('hidden', !abrir);
+function autoResizeTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = 'auto';
+  const min = 96;
+  const max = 180;
+  textarea.style.height = Math.min(Math.max(textarea.scrollHeight, min), max) + 'px';
 }
 
 window.abrirChat = async function (amigoId, nome = '') {
@@ -197,6 +246,8 @@ window.abrirChat = async function (amigoId, nome = '') {
     userStatusChannel = null;
   }
 
+  limparCliqueFora();
+
   const me = await getMe();
   if (!me) return;
 
@@ -207,56 +258,72 @@ window.abrirChat = async function (amigoId, nome = '') {
   chatAbertoCom = amigoId;
   removerToastsDoContato(amigoId);
 
+  const statusTexto = online(amigo) ? 'Online' : 'Offline';
+  const statusCss = statusClass(amigo);
+
   const win = document.createElement('div');
   win.id = 'janela-chat';
   win.className = 'chat-window';
   win.innerHTML = `
     <div class="chat-top">
-      <button class="chat-back" type="button">←</button>
+      <button class="chat-back" type="button" aria-label="Voltar">←</button>
       <img class="chat-avatar" src="${foto}" alt="${escapeHtml(nomeAmigo)}">
       <div class="chat-head">
         <strong>${escapeHtml(nomeAmigo)}</strong>
-        <span id="chat-status">${online(amigo) ? 'Online' : 'Offline'}</span>
+        <span id="chat-status" class="${statusCss}">${statusTexto}</span>
       </div>
     </div>
 
     <div id="chat-messages" class="chat-messages"></div>
 
-    <div class="chat-actions-bar">
-      <button id="chat-emoji-toggle" class="chat-action-btn" type="button" title="Emojis">😊</button>
-    </div>
+    <div class="chat-composer-shell">
+      <div class="chat-actions-bar">
+        <button id="chat-emoji-toggle" class="chat-action-btn" type="button" title="Emojis" aria-label="Abrir emojis">😊</button>
+      </div>
 
-    <div id="chat-emoji-panel" class="chat-emoji-panel hidden"></div>
+      <div id="chat-emoji-panel" class="chat-emoji-panel hidden"></div>
 
-    <div class="chat-bottom">
-      <input id="chat-input" placeholder="Digite sua mensagem" autocomplete="off">
-      <button id="chat-send" type="button">➤</button>
+      <div class="chat-bottom">
+        <div class="chat-input-wrap">
+          <textarea id="chat-input" rows="4" placeholder="Digite sua mensagem" autocomplete="off"></textarea>
+        </div>
+        <button id="chat-send" class="chat-send" type="button" aria-label="Enviar">
+          <span class="chat-send-icon">➤</span>
+        </button>
+      </div>
     </div>
   `;
 
   document.body.appendChild(win);
 
   montarPainelEmoji(win);
+  configurarCliqueFora(win);
+
+  const input = win.querySelector('#chat-input');
+  autoResizeTextarea(input);
+  input?.addEventListener('input', () => autoResizeTextarea(input));
 
   win.querySelector('.chat-back')?.addEventListener('click', () => window.fecharChatAtivo());
 
-  win.querySelector('#chat-emoji-toggle')?.addEventListener('click', () => {
-    togglePainelEmoji(win);
+  win.querySelector('#chat-emoji-toggle')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    alternarPainelEmoji(win);
   });
 
-  win.querySelector('#chat-messages')?.addEventListener('click', () => {
-    togglePainelEmoji(win, false);
-  });
+  win.querySelector('#chat-messages')?.addEventListener('click', () => fecharPainelEmoji(win));
 
   await carregarMensagens(me.id, amigoId);
 
   async function enviar() {
-    const input = win.querySelector('#chat-input');
     const texto = input?.value.trim();
     if (!texto) return;
 
+    const sendBtn = win.querySelector('#chat-send');
+    if (sendBtn) sendBtn.disabled = true;
+
     input.value = '';
-    togglePainelEmoji(win, false);
+    autoResizeTextarea(input);
+    fecharPainelEmoji(win);
 
     const agora = new Date().toISOString();
 
@@ -270,6 +337,7 @@ window.abrirChat = async function (amigoId, nome = '') {
 
     if (msgError) {
       console.error('[chat] erro ao enviar mensagem:', msgError);
+      if (sendBtn) sendBtn.disabled = false;
       return;
     }
 
@@ -287,12 +355,16 @@ window.abrirChat = async function (amigoId, nome = '') {
     }
 
     await carregarMensagens(me.id, amigoId);
+    if (sendBtn) sendBtn.disabled = false;
   }
 
   win.querySelector('#chat-send')?.addEventListener('click', enviar);
 
-  win.querySelector('#chat-input')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') enviar();
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      enviar();
+    }
   });
 
   roomChannel = supabase
@@ -328,7 +400,10 @@ window.abrirChat = async function (amigoId, nome = '') {
       },
       (payload) => {
         const el = document.getElementById('chat-status');
-        if (el) el.textContent = online(payload.new) ? 'Online' : 'Offline';
+        if (!el) return;
+        el.textContent = online(payload.new) ? 'Online' : 'Offline';
+        el.classList.remove('online', 'offline');
+        el.classList.add(online(payload.new) ? 'online' : 'offline');
       }
     )
     .subscribe();
@@ -338,6 +413,7 @@ window.fecharChatAtivo = function () {
   document.getElementById('janela-chat')?.remove();
   chatAbertoCom = null;
   chatLoadToken++;
+  limparCliqueFora();
 
   if (roomChannel) {
     supabase.removeChannel(roomChannel);
@@ -376,8 +452,6 @@ export function iniciarMonitorChat(user) {
         const from = await getUser(n.from_uid);
         const nomeFrom = from?.name || 'Amigo';
 
-        // FIX: se o chat já estiver aberto com essa pessoa,
-        // atualiza a conversa por dentro e NÃO mostra toast fora.
         if (chatEstaAbertoCom(n.from_uid)) {
           await carregarMensagens(user.id, n.from_uid);
           removerToastsDoContato(n.from_uid);

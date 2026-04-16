@@ -202,11 +202,10 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
             await exibirTrofeuImediato({ badgeKey: key, ...badge });
         }
 
-        const ptsDisplay = document.getElementById('user-points-display');
-        if (ptsDisplay) {
-            const { data: u } = await supabase.from('users').select('points').eq('uid', uid).single();
-            if (u) ptsDisplay.textContent = `${u.points} pts`;
-        }
+        // O canal realtime do index.html já cuida de atualizar pontos, nível,
+        // header e barra de EXP automaticamente após o update no banco.
+        // Dispara evento extra para garantir atualização imediata da EXP local.
+        window.dispatchEvent(new CustomEvent('pontos_atualizados', { detail: { uid } }));
     } catch (e) {
         console.error('Erro verificarBadges:', e);
     }

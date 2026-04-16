@@ -270,7 +270,41 @@
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${user.id}` },
-            (payload) => aplicarResumoMenu(payload.new)
+            (payload) => {
+              // Atualiza pontos/nível no sidebar e header imediatamente com o payload
+              aplicarResumoMenu(payload.new);
+              // Recalcula e atualiza a barra de EXP buscando total de caps no banco
+              supabase
+                .from('progresso')
+                .select('id', { count: 'exact', head: true })
+                .eq('uid', user.id)
+                .eq('concluido', true)
+                .then(({ count }) => {
+                  if (typeof count === 'number') atualizarBarraExpMenu(count);
+                });
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'progresso', filter: `uid=eq.${user.id}` },
+            () => {
+              // Novo capítulo lido: re-busca total e atualiza EXP imediatamente
+              supabase
+                .from('progresso')
+                .select('id', { count: 'exact', head: true })
+                .eq('uid', user.id)
+                .eq('concluido', true)
+                .then(({ count }) => {
+                  if (typeof count === 'number') atualizarBarraExpMenu(count);
+                });
+              // Também re-busca pontos/nível do usuário (badges podem ter sido ganhos)
+              supabase
+                .from('users')
+                .select('*')
+                .eq('uid', user.id)
+                .single()
+                .then(({ data }) => { if (data) aplicarResumoMenu(data); });
+            }
           )
           .subscribe();
 
@@ -300,6 +334,13 @@
     window.addEventListener('exp_atualizada', (e) => {
       const totalCaps = e.detail?.totalCaps;
       if (typeof totalCaps === 'number') atualizarBarraExpMenu(totalCaps);
+    });
+
+    // Disparado por badges.js quando troféus são concedidos e pontos mudam
+    window.addEventListener('pontos_atualizados', async (e) => {
+      const uid = e.detail?.uid || currentUid;
+      if (!uid) return;
+      await atualizarMenuUsuario(uid);
     });
 
     let promptInstalacao = null;
