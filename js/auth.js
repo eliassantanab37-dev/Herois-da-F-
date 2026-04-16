@@ -39,6 +39,24 @@ function toast(msg, ok=true){ alert((ok?'✅ ':'❌ ') + msg); }
 function validarDataNascimento(data){ return /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(\d{4})$/.test(data); }
 function formatarDataParaBanco(dataBR){ const [d,m,a] = dataBR.split('/'); return `${a}-${m}-${d}`; }
 
+function somenteDigitos(v=''){ return String(v).replace(/\D/g, '').slice(0, 8); }
+function formatarInputDataNascimento(v=''){
+  const d = somenteDigitos(v);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0,2)}/${d.slice(2)}`;
+  return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4,8)}`;
+}
+function aplicarMascaraDataNascimento(input){
+  if (!input) return;
+  const aplicar = () => {
+    input.value = formatarInputDataNascimento(input.value);
+  };
+  input.addEventListener('input', aplicar);
+  input.addEventListener('blur', aplicar);
+  input.addEventListener('paste', () => setTimeout(aplicar, 0));
+  aplicar();
+}
+
 async function criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco){
   const payload = {
     uid: user.id,
@@ -153,6 +171,10 @@ function renderizarUsuario(u){
   if (userProfilePic) userProfilePic.innerHTML = `<img src="${foto}" alt="foto">`;
   const n = document.getElementById('nivel-numero'); if (n) n.textContent = String(nivel);
 }
+
+
+const inputDataNascimentoCadastro = document.getElementById('reg-data-nascimento');
+aplicarMascaraDataNascimento(inputDataNascimentoCadastro);
 
 if (inputFoto) {
   inputFoto.addEventListener('change', async (e) => {
