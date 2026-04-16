@@ -69,17 +69,29 @@ import { judas } from './livros/judas.js';
 import { apocalipse } from './livros/apocalipse.js';
 
 export const bible = {
-  genesis, exodo, levitico, numeros, deuteronomio, josue, juizes, rute,
-  primeiro_samuel, segundo_samuel, primeiro_reis, segundo_reis,
-  primeiro_cronicas, segundo_cronicas, esdras, neemias, ester, jo,
-  salmos, proverbios, eclesiastes, cantares, isaias, jeremias, lamentacoes,
-  ezequiel, daniel, oseias, joel, amos, obadias, jonas, miqueias, naum,
-  habacuque, sofonias, ageu, zacarias, malaquias, mateus, marcos, lucas,
-  joao, atos, romanos, primeiro_corintios, segundo_corintios, galatas,
-  efesios, filipenses, colossenses, primeiro_tessalonicenses,
-  segunda_tessalonicenses, primeira_timoteo, segunda_timoteo, tito,
-  filemon, hebreus, tiago, primeira_pedro, segunda_pedro,
-  primeira_joao, segunda_joao, terceira_joao, judas, apocalipse,
+  // Pentateuco
+  genesis, exodo, levitico, numeros, deuteronomio,
+  // Históricos
+  josue, juizes, rute, primeiro_samuel, segundo_samuel,
+  primeiro_reis, segundo_reis, primeiro_cronicas, segundo_cronicas, esdras,
+  neemias, ester, 
+  // Poéticos
+  jo, salmos, proverbios, eclesiastes, cantares,
+  // Profetas Maiores
+  isaias, jeremias, lamentacoes, ezequiel, daniel,
+  // Profetas Menores
+  oseias, joel, amos, obadias, jonas,
+  miqueias, naum, habacuque, sofonias, ageu,
+  zacarias, malaquias,
+  // Evangelhos e Atos
+  mateus, marcos, lucas, joao, atos,
+  // Cartas de Paulo
+  romanos, primeiro_corintios, segundo_corintios, galatas, efesios,
+  filipenses, colossenses, primeiro_tessalonicenses, segunda_tessalonicenses, primeira_timoteo,
+  segunda_timoteo, tito, filemon,
+  // Outras Cartas e Apocalipse
+  hebreus, tiago, primeira_pedro, segunda_pedro, primeira_joao,
+  segunda_joao, terceira_joao, judas, apocalipse
 };
 
 function safe(text) {
