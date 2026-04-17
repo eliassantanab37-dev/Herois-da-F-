@@ -14,25 +14,41 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <style>
-    .auth-action-row.install-share-row{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-      align-items:stretch;
-    }
-    .auth-action-row.install-share-row .auth-special-btn{
-      width:100%;
-      min-height:56px;
-      border-radius:20px;
-      font-weight:700;
-      padding:14px 16px;
-    }
     .auth-form .btn-mission,
     .auth-form .auth-special-btn,
     .auth-form input,
     .auth-tabs .tab-btn{
       border-radius:20px !important;
     }
+
+    .auth-login-actions-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:12px;
+      margin-top:6px;
+      align-items:stretch;
+    }
+
+    .auth-login-actions-grid .btn-mission,
+    .auth-login-actions-grid .auth-special-btn{
+      width:100%;
+      min-height:54px;
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      font-size:1rem;
+      line-height:1.15;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+    .auth-login-actions-grid .btn-mission::before,
+    .auth-login-actions-grid .auth-special-btn::before{
+      animation-duration:3.1s;
+    }
+
     .install-gold-glass{
       color:#170f00;
       background:linear-gradient(135deg, rgba(103,76,7,0.96), rgba(212,175,55,0.82) 36%, rgba(255,237,164,0.98) 50%, rgba(212,175,55,0.82) 64%, rgba(103,76,7,0.96));
@@ -41,6 +57,7 @@
       position:relative;
       overflow:hidden;
     }
+
     .install-gold-glass::before{
       content:'';
       position:absolute;
@@ -52,6 +69,7 @@
       transform:skewX(-22deg);
       animation:shineInstall 2.8s linear infinite;
     }
+
     .install-gold-glass::after{
       content:'';
       position:absolute;
@@ -59,17 +77,76 @@
       background:linear-gradient(180deg, rgba(255,255,255,0.16), transparent 42%, rgba(255,255,255,0.05));
       pointer-events:none;
     }
+
     .install-gold-glass > span,
-    .share-compact-glass > span{ position:relative; z-index:2; }
-    .share-compact-glass{
-      background:linear-gradient(135deg, rgba(9,110,80,0.98), rgba(118,226,203,0.92));
-      color:#fff;
-      border:1px solid rgba(180,255,236,0.45) !important;
-      box-shadow:0 10px 22px rgba(27,161,133,0.18), inset 0 1px 0 rgba(255,255,255,0.22);
+    .share-compact-glass > span{ 
+      position:relative; 
+      z-index:2; 
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
     }
+
+    .share-compact-glass{
+      background:linear-gradient(135deg, rgba(28,28,28,0.96), rgba(65,65,65,0.84));
+      color:#fff;
+      border:1px solid rgba(255,255,255,0.16) !important;
+      box-shadow:0 10px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.14);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .auth-login-footer-ad{
+      margin-top:14px;
+      min-height:92px;
+      border-radius:20px;
+      border:1px dashed rgba(212,175,55,0.28);
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      color:#8f866f;
+      font-size:.82rem;
+      padding:14px;
+    }
+
+    .auth-login-footer-ad strong{
+      display:block;
+      color:#d4af37;
+      font-size:.86rem;
+      margin-bottom:4px;
+      letter-spacing:.4px;
+    }
+
     @keyframes shineInstall{ from{ left:-70%; } to{ left:130%; } }
-    @media (max-width: 520px){
-      .auth-action-row.install-share-row{ grid-template-columns:1fr; }
+
+    @media (max-width: 700px){
+      .auth-login-actions-grid{
+        gap:10px;
+      }
+
+      .auth-login-actions-grid .btn-mission,
+      .auth-login-actions-grid .auth-special-btn{
+        min-height:52px;
+        padding:11px 10px;
+        font-size:.95rem;
+      }
+    }
+
+    @media (max-width: 420px){
+      .auth-login-actions-grid .btn-mission,
+      .auth-login-actions-grid .auth-special-btn{
+        min-height:50px;
+        font-size:.88rem;
+        letter-spacing:0;
+      }
+
+      .auth-login-footer-ad{
+        min-height:84px;
+        font-size:.76rem;
+      }
     }
   </style>
 
@@ -128,9 +205,20 @@
       <form id="form-entrar" class="auth-form">
         <input type="email" id="login-email" placeholder="Seu E-mail" required autocomplete="email">
         <input type="password" id="login-senha" placeholder="Sua Senha" required autocomplete="current-password">
-        <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR NO JOGO</button>
-        <div class="auth-action-row secondary"><button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button></div>
-        <div class="auth-action-row install-share-row"><button type="button" id="btn-instalar-app-login" class="auth-special-btn install-gold-glass"><span>📲 Download do App</span></button><button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhar App</span></button></div>
+
+        <div class="auth-login-actions-grid">
+          <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR NO JOGO</button>
+          <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button>
+          <button type="button" id="btn-instalar-app-login" class="auth-special-btn install-gold-glass"><span>📲 Download do App</span></button>
+          <button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhar App</span></button>
+        </div>
+
+        <div class="auth-login-footer-ad">
+          <div>
+            <strong>Espaço reservado para publicidade</strong>
+            Rodapé pronto para receber um segundo bloco de anúncio no login.
+          </div>
+        </div>
       </form>
       <form id="form-cadastrar" class="auth-form" style="display:none;">
         <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12" autocomplete="name"><small class="auth-field-tip">Máximo de 12 caracteres</small>
