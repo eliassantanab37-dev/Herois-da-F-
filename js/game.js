@@ -15,6 +15,7 @@ import {
     atualizarExpAposLeitura,
     atualizarBarraExpMenu
 } from './badges.js';
+import { renderizarRankingComPresenca } from './duel.js';
 
 // ── ESTADO ─────────────────────────────────────────────────
 let processandoResposta = false;
@@ -162,22 +163,17 @@ async function atualizarPontosDoUsuario(uid, pontosGanhos) {
     if (selectError) throw selectError;
 
     const novosPontos = (userAtual?.points || 0) + pontosGanhos;
-    const agoraIso = new Date().toISOString();
 
     const { error: updateError } = await supabase
         .from('users')
         .update({
             points: novosPontos,
-            lastUpdate: agoraIso,
-            lastupdate: agoraIso
+            lastUpdate: new Date().toISOString(),
+            lastupdate: new Date().toISOString()
         })
         .eq('uid', uid);
 
     if (updateError) throw updateError;
-
-    window.dispatchEvent(new CustomEvent('pontos_atualizados', {
-        detail: { uid, pontos: novosPontos }
-    }));
 
     return novosPontos;
 }
@@ -214,7 +210,7 @@ function iniciarAuditoriaPontuacao(uid) {
                         await supabase.from('logs_pontuacao').insert({
                             uid,
                             pontos: ganho,
-                            created_at: new Date().toISOString()
+                            data: new Date().toLocaleString('pt-BR')
                         });
                     } catch (e) {
                         console.warn('[auditoria] erro ao salvar log:', e);
@@ -345,72 +341,10 @@ async function mostrarRanking() {
         .subscribe();
 }
 
+
 async function _renderizarRanking() {
-    const container = document.getElementById('ranking-lista');
-    if (!container) return;
-
     const { data: { user: eu } } = await supabase.auth.getUser();
-
-    const { data: usuarios } = await supabase
-        .from('users')
-        .select('uid, name, points, photoURL, photourl')
-        .order('points', { ascending: false })
-        .limit(50);
-
-    if (!usuarios) return;
-
-    let html = `<div style="max-width:700px; margin:0 auto;">`;
-
-    usuarios.forEach((u, index) => {
-        const isMe = eu?.id === u.uid;
-        const foto = u.photoURL || u.photourl || gerarAvatarPadrao(u.name || '');
-        const titulo = calcularNivel(u.points || 0);
-        const nome = u.name
-            ? (u.name.length > 12 ? u.name.substring(0, 12) + '…' : u.name)
-            : 'Herói';
-
-        let rankConteudo = index + 1;
-
-        if (index === 0) {
-            rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
-        } else if (index === 1) {
-            rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-prata"></div><div class="trofeu-icone">🥈</div></div>`;
-        } else if (index === 2) {
-            rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-bronze"></div><div class="trofeu-icone">🥉</div></div>`;
-        }
-
-        html += `
-            <div onclick="window.verPerfilDetalhado('${u.uid}')"
-                 style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:10px;
-                        cursor:pointer; transition:transform 0.2s;
-                        background:${index < 3 ? 'rgba(212,175,55,0.25)' : isMe ? 'rgba(212,175,55,0.15)' : 'rgba(0,0,0,0.4)'};
-                        border:1px solid ${index < 3 ? '#d4af37' : '#333'};
-                        border-radius:12px; backdrop-filter:blur(5px);"
-                 onmouseover="this.style.transform='scale(1.02)'"
-                 onmouseout="this.style.transform='scale(1)'">
-
-                <div style="width:45px; display:flex; justify-content:center; align-items:center; font-family:'Cinzel'; font-weight:bold; color:#d4af37;">
-                    ${rankConteudo}
-                </div>
-
-                <img src="${foto}"
-                     style="width:48px; height:48px; border-radius:50%; border:2px solid #d4af37; object-fit:cover;"
-                     onerror="this.src='${gerarAvatarPadrao(u.name || '')}'">
-
-                <div style="flex:1; text-align:left;">
-                    <div style="color:white; font-weight:bold;">
-                        ${nome} ${isMe ? '<span style="color:#d4af37; font-size:0.75rem;">(você)</span>' : ''}
-                    </div>
-                    <div class="nivel-chamas-ouro">${titulo}</div>
-                    <div style="color:#d4af37; font-size:0.8rem; font-weight:bold; margin-top:2px;">
-                        ${u.points || 0} PTS
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html + '</div>';
+    await renderizarRankingComPresenca(eu);
 }
 
 window.voltarParaBiblia = function () {
@@ -519,17 +453,10 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
             </div>
         `;
 
-        const bgRaw = livro.background || '';
-        const bgUrl = bgRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (bgUrl) {
-            document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
-            document.body.style.backgroundSize = 'cover';
-            document.body.style.backgroundAttachment = 'fixed';
-        } else {
-            document.body.style.backgroundImage = '';
-            document.body.style.backgroundSize = '';
-            document.body.style.backgroundAttachment = '';
-        }
+        const bgUrl = livro.background.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundAttachment = 'fixed';
 
         // FIX: cria scroll listener com referência limpa
         const tratarScroll = () => {

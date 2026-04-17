@@ -20,6 +20,7 @@ const SHELL = [
     '/js/badges.js',
     '/js/stats.js',
     '/js/challenges.js',
+    '/js/duel.js',
     '/js/cropper.js',
 ];
 
