@@ -15,6 +15,7 @@ let _meuUid = null;
 
 
 let _perfilRequestId = 0;
+let _presenceHandlersBound = false;
 
 function fecharMenuLateral() {
   try { window.fecharSidebar?.(); } catch {}
@@ -68,7 +69,7 @@ function isOnline(user) {
   const t = campo(user, 'lastUpdate', 'lastupdate');
   if (!t) return false;
   const diff = Date.now() - new Date(t).getTime();
-  return diff >= 0 && diff < 90000;
+  return diff >= 0 && diff < 180000;
 }
 
 function idade(data) {
@@ -291,11 +292,26 @@ export function iniciarSocial(user) {
   heartbeat(user.id);
   heartbeatTimer = setInterval(() => heartbeat(user.id), 45000);
 
+  if (!_presenceHandlersBound) {
+    _presenceHandlersBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && _meuUid) heartbeat(_meuUid);
+    });
+    window.addEventListener('focus', () => {
+      if (_meuUid) heartbeat(_meuUid);
+    });
+  }
+
   chFriends = supabase
     .channel(`friends-live-${user.id}`)
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'friends' },
+      { event: '*', schema: 'public', table: 'friends', filter: `uid=eq.${user.id}` },
+      () => recarregarSidebar(user.id)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'friends', filter: `friend_uid=eq.${user.id}` },
       () => recarregarSidebar(user.id)
     )
     .on(
@@ -337,7 +353,7 @@ async function recarregarSidebar(uid = _meuUid) {
         .from('friends')
         .select('uid, friend_uid, status, created_at')
         .or(`and(uid.eq.${uid},status.eq.accepted),and(friend_uid.eq.${uid},status.eq.accepted)`)
-        .limit(2000),
+        .limit(200),
 
       supabase
         .from('notificacoes')
@@ -681,7 +697,16 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
       return;
     }
 
-    const { userData, viewerPoints, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus, versosLidos } = await comTimeout(dadosPerfil(uid, user.id), 8000);
+    let { userData, viewerPoints, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus, versosLidos } = await comTimeout(dadosPerfil(uid, user.id), 8000);
+
+    try {
+      const { data: freshUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', uid)
+        .maybeSingle();
+      if (freshUser) userData = freshUser;
+    } catch {}
 
     if (reqId !== _perfilRequestId) {
       fecharOverlay();

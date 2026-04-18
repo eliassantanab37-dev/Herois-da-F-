@@ -26,6 +26,7 @@ let _auditoriaChannel = null;
 let _auditoriaUid = null;
 let saldoAnterior = null;
 let _processandoTimeout = null; // FIX: safety timeout para liberar estado travado
+let _rankingRefreshTimer = null;
 
 // FIX: libera processandoResposta após 12s caso algo trave
 function _agendarLiberacaoSegura() {
@@ -336,9 +337,22 @@ async function mostrarRanking() {
         .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'users' },
-            () => { _renderizarRanking(); }
+            (payload) => {
+                const oldRow = payload.old || {};
+                const newRow = payload.new || {};
+                const changedImportant =
+                    Number(oldRow.points || 0) !== Number(newRow.points || 0) ||
+                    String(oldRow.name || '') !== String(newRow.name || '') ||
+                    String(oldRow.photoURL || oldRow.photourl || '') !== String(newRow.photoURL || newRow.photourl || '');
+                if (changedImportant) _renderizarRanking();
+            }
         )
         .subscribe();
+
+    if (_rankingRefreshTimer) clearInterval(_rankingRefreshTimer);
+    _rankingRefreshTimer = setInterval(() => {
+        if (window._paginaAtualJogo === 'ranking') _renderizarRanking();
+    }, 20000);
 }
 
 
@@ -357,6 +371,11 @@ window.voltarParaBiblia = function () {
     if (_rankingChannel) {
         supabase.removeChannel(_rankingChannel);
         _rankingChannel = null;
+    }
+
+    if (_rankingRefreshTimer) {
+        clearInterval(_rankingRefreshTimer);
+        _rankingRefreshTimer = null;
     }
 
     if (window._tratarScrollAtivo) {

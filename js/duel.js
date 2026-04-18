@@ -4,7 +4,7 @@ import { supabase } from './config.js';
 const ROUND_SECONDS = 20;
 const TOTAL_ROUNDS = 10;
 const DUEL_WIN_POINTS = 100;
-const ONLINE_MS = 90000;
+const ONLINE_MS = 180000;
 
 let _me = null;
 let _inviteChannel = null;
@@ -14,6 +14,9 @@ let _renderTimer = null;
 let _duelStateCache = null;
 let _currentDuelId = null;
 let _finalOverlayOpen = false;
+let _lastAnswersChannelDuelId = null;
+let _answerSubmitKey = '';
+let _forfeitInFlight = false;
 window.__duelRankingContextByUid = window.__duelRankingContextByUid || {};
 
 const QUESTION_BANK = [
@@ -166,14 +169,41 @@ function calcNivel(pts){
   return 'Herói da Fé Eterno';
 }
 
-function teardownChannels(){
-  if (_inviteChannel) { supabase.removeChannel(_inviteChannel); _inviteChannel = null; }
-  if (_duelChannel) { supabase.removeChannel(_duelChannel); _duelChannel = null; }
-  if (_answersChannel) { supabase.removeChannel(_answersChannel); _answersChannel = null; }
+async function teardownChannels(){
+  const removals = [];
+  if (_inviteChannel) { removals.push(supabase.removeChannel(_inviteChannel)); _inviteChannel = null; }
+  if (_duelChannel) { removals.push(supabase.removeChannel(_duelChannel)); _duelChannel = null; }
+  if (_answersChannel) { removals.push(supabase.removeChannel(_answersChannel)); _answersChannel = null; }
+  if (removals.length) { try { await Promise.allSettled(removals); } catch {} }
   if (_renderTimer) { clearInterval(_renderTimer); _renderTimer = null; }
   _duelStateCache = null;
   _currentDuelId = null;
+  _lastAnswersChannelDuelId = null;
+  _answerSubmitKey = '';
+  _forfeitInFlight = false;
   _finalOverlayOpen = false;
+}
+
+async function attachAnswersChannel(duelId){
+  if (!duelId) return;
+  if (_answersChannel && _lastAnswersChannelDuelId === duelId) return;
+  if (_answersChannel) {
+    try { await supabase.removeChannel(_answersChannel); } catch {}
+    _answersChannel = null;
+  }
+  _lastAnswersChannelDuelId = duelId;
+  _answersChannel = supabase.channel('duel-answers-'+_me.id+'-'+duelId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'duelo_respostas',filter:`duelo_id=eq.${duelId}`}, ()=> {
+      if (_currentDuelId === duelId) carregarDuelo(duelId);
+    })
+    .subscribe();
+}
+
+function disableArenaOptions(){
+  document.querySelectorAll('#duel-arena .arena-opt').forEach(btn => {
+    btn.disabled = true;
+    btn.style.opacity = '.75';
+  });
 }
 
 async function getMe(){
@@ -184,9 +214,9 @@ async function getMe(){
 async function ensureObservers(){
   injectStyles();
   const me = await getMe();
-  if (!me?.id) { teardownChannels(); _me=null; return; }
-  if (_me?.id === me.id && _inviteChannel && _duelChannel && _answersChannel) return;
-  teardownChannels();
+  if (!me?.id) { await teardownChannels(); _me=null; return; }
+  if (_me?.id === me.id && _inviteChannel && _duelChannel) return;
+  await teardownChannels();
   _me = me;
 
   _inviteChannel = supabase
@@ -206,23 +236,18 @@ async function ensureObservers(){
     .on('postgres_changes',{event:'*',schema:'public',table:'duelos',filter:duelFilter2}, ()=> carregarDueloAtivo())
     .subscribe();
 
-  _answersChannel = supabase.channel('duel-answers-'+me.id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'duelo_respostas'}, ()=> {
-      if (_currentDuelId) carregarDuelo(_currentDuelId);
-    })
-    .subscribe();
-
-  carregarDueloAtivo();
+  await carregarDueloAtivo();
 }
 
 async function carregarDueloAtivo(){
   if (!_me?.id) return;
+  const cutoff = new Date(Date.now() - (2 * 60 * 60 * 1000)).toISOString();
   const { data } = await supabase
     .from('duelos')
     .select('*')
     .or(`player1_uid.eq.${_me.id},player2_uid.eq.${_me.id}`)
-    .in('status',['ativa','finalizada','desistida'])
-    .order('id',{ascending:false})
+    .or(`status.eq.ativa,and(updated_at.gte.${cutoff},status.eq.finalizada),and(updated_at.gte.${cutoff},status.eq.desistida)`)
+    .order('updated_at',{ascending:false})
     .limit(1);
   const duelo = data?.[0];
   if (!duelo) return;
@@ -237,6 +262,7 @@ async function carregarDuelo(id){
 
   if (duelo.status === 'ativa') {
     _finalOverlayOpen = false;
+    await attachAnswersChannel(duelo.id);
     await renderArena(duelo);
   } else if ((duelo.status === 'finalizada' || duelo.status === 'desistida') && !_finalOverlayOpen) {
     _finalOverlayOpen = true;
@@ -292,6 +318,7 @@ async function createDuel(player1, player2){
     updated_at: now,
     points_applied: false,
     rematch_accepted: false,
+    rematch_requested_by: null,
   }).select('*').single();
   if (error) throw error;
   return data;
@@ -369,16 +396,26 @@ async function mostrarConviteDesafio(invite){
     </div>`;
   document.body.appendChild(ov);
   ov.querySelector('#duel-decline')?.addEventListener('click', async ()=>{
+    const acceptBtn = ov.querySelector('#duel-accept');
+    const declineBtn = ov.querySelector('#duel-decline');
+    if (acceptBtn) acceptBtn.disabled = true;
+    if (declineBtn) declineBtn.disabled = true;
     await supabase.from('desafios_duelo').update({status:'recusado',updated_at:new Date().toISOString()}).eq('id', invite.id);
     ov.remove();
   });
   ov.querySelector('#duel-accept')?.addEventListener('click', async ()=>{
+    const acceptBtn = ov.querySelector('#duel-accept');
+    const declineBtn = ov.querySelector('#duel-decline');
+    if (acceptBtn) { acceptBtn.disabled = true; acceptBtn.textContent = 'Preparando...'; }
+    if (declineBtn) declineBtn.disabled = true;
     try {
       const me = _me || await getMe();
       const { data: meRow } = await supabase.from('users').select('name, photoURL, photourl, points').eq('uid', me.id).single();
       if (Number(meRow?.points || 0) < 100) { toast('Você precisa de 100 pontos para aceitar.'); return; }
       const { data: challenger } = await supabase.from('users').select('name, photoURL, photourl, points').eq('uid', invite.de_uid).single();
       if (Number(challenger?.points || 0) < 100) { toast('O desafiante não tem mais 100 pontos.'); return; }
+      const { data: activeExisting } = await supabase.from('duelos').select('id').or(`and(player1_uid.eq.${invite.de_uid},player2_uid.eq.${me.id}),and(player1_uid.eq.${me.id},player2_uid.eq.${invite.de_uid})`).eq('status','ativa').limit(1);
+      if ((activeExisting || []).length) { toast('Já existe uma partida ativa entre vocês.'); ov.remove(); return; }
       const duelo = await createDuel(
         { uid: invite.de_uid, name: challenger?.name || invite.de_nome, foto: challenger?.photoURL || challenger?.photourl || invite.de_foto },
         { uid: me.id, name: meRow?.name || 'Herói', foto: meRow?.photoURL || meRow?.photourl || avatar(meRow?.name || 'Herói') }
@@ -386,7 +423,7 @@ async function mostrarConviteDesafio(invite){
       await supabase.from('desafios_duelo').update({status:'aceito', duelo_id: duelo.id, updated_at:new Date().toISOString()}).eq('id', invite.id);
       ov.remove();
       await carregarDuelo(duelo.id);
-    } catch (e) { console.error(e); toast('Não foi possível iniciar o duelo.'); }
+    } catch (e) { console.error(e); toast('Não foi possível iniciar o duelo.'); if (acceptBtn) { acceptBtn.disabled = false; acceptBtn.textContent = 'Aceitar'; } if (declineBtn) declineBtn.disabled = false; }
   });
 }
 
@@ -449,23 +486,30 @@ function questionForRound(duelo, roundNumber){
 }
 
 async function submitAnswer(duelo, answerIndex){
-  const info = duelPlayers(duelo);
   const round = Number(duelo.current_round || 1);
   const q = questionForRound(duelo, round);
   if (!q) return;
-  const existing = await getRoundAnswers(duelo.id, round);
-  if (existing.some(r => r.uid === _me.id)) return;
-  const correct = Number(answerIndex) === Number(q.correta);
-  const { error } = await supabase.from('duelo_respostas').insert({
-    duelo_id: duelo.id,
-    round_number: round,
-    uid: _me.id,
-    answer_index: Number(answerIndex),
-    correct,
-    responded_at: new Date().toISOString(),
-  });
-  if (error) { console.error(error); toast('Não foi possível registrar sua resposta.'); return; }
-  await maybeAdvanceRound(duelo.id, round);
+  const submitKey = `${duelo.id}:${round}:${_me?.id}`;
+  if (_answerSubmitKey === submitKey) return;
+  _answerSubmitKey = submitKey;
+  disableArenaOptions();
+  try {
+    const existing = await getRoundAnswers(duelo.id, round);
+    if (existing.some(r => r.uid === _me.id)) return;
+    const correct = Number(answerIndex) === Number(q.correta);
+    const { error } = await supabase.from('duelo_respostas').insert({
+      duelo_id: duelo.id,
+      round_number: round,
+      uid: _me.id,
+      answer_index: Number(answerIndex),
+      correct,
+      responded_at: new Date().toISOString(),
+    });
+    if (error) { console.error(error); toast('Não foi possível registrar sua resposta.'); return; }
+    await maybeAdvanceRound(duelo.id, round);
+  } finally {
+    setTimeout(() => { if (_answerSubmitKey === submitKey) _answerSubmitKey = ''; }, 1200);
+  }
 }
 
 async function maybeAdvanceRound(duelId, roundNumber){
@@ -504,14 +548,20 @@ async function maybeAdvanceRound(duelId, roundNumber){
     return;
   }
 
-  await supabase.from('duelos').update({
+  const { data: progressed } = await supabase.from('duelos').update({
     score1: newScore1,
     score2: newScore2,
     current_round: roundNumber + 1,
     round_started_at: now,
     updated_at: now,
-  }).eq('id', duelId).eq('status', 'ativa').eq('current_round', roundNumber);
+  }).eq('id', duelId).eq('status', 'ativa').eq('current_round', roundNumber).select('id,current_round').maybeSingle();
+
+  if (!progressed) {
+    const { data: latest } = await supabase.from('duelos').select('id,current_round,status').eq('id', duelId).maybeSingle();
+    if (latest && (Number(latest.current_round) !== Number(roundNumber) || latest.status !== 'ativa')) return;
+  }
 }
+
 
 async function applyPointsIfNeeded(duelo){
   if (duelo.points_applied) return;
@@ -531,9 +581,11 @@ async function applyPointsIfNeeded(duelo){
 }
 
 async function forfeitCurrentDuel(){
+  if (_forfeitInFlight) return;
   if (!_duelStateCache || !_me?.id) return;
   const duelo = _duelStateCache;
   if (duelo.status !== 'ativa') return;
+  _forfeitInFlight = true;
   const opponentUid = duelo.player1_uid === _me.id ? duelo.player2_uid : duelo.player1_uid;
   const now = new Date().toISOString();
   const { data: updated } = await supabase.from('duelos').update({
@@ -543,7 +595,11 @@ async function forfeitCurrentDuel(){
     ended_reason: 'desistencia',
     updated_at: now,
   }).eq('id', duelo.id).eq('status','ativa').select('*').maybeSingle();
-  if (updated) await applyPointsIfNeeded(updated);
+  try {
+    if (updated) await applyPointsIfNeeded(updated);
+  } finally {
+    setTimeout(() => { _forfeitInFlight = false; }, 1500);
+  }
 }
 
 function clearArena(){
@@ -612,7 +668,9 @@ async function renderArena(duelo){
 
   arena.querySelectorAll('.arena-opt').forEach(btn => {
     btn.addEventListener('click', async ()=>{
-      if (myAnswer) return;
+      if (myAnswer || _answerSubmitKey) return;
+      disableArenaOptions();
+      btn.classList.add('selected');
       await submitAnswer(duelo, Number(btn.dataset.idx));
       await carregarDuelo(duelo.id);
     });
@@ -688,7 +746,7 @@ async function renderFinal(duelo){
       </div>
     </div>`;
   document.body.appendChild(ov);
-  ov.querySelector('#duel-close-final')?.addEventListener('click', ()=> { ov.remove(); window.voltarParaBiblia?.(); });
+  ov.querySelector('#duel-close-final')?.addEventListener('click', ()=> { _finalOverlayOpen = false; ov.remove(); window.voltarParaBiblia?.(); });
   ov.querySelector('#duel-rematch-btn')?.addEventListener('click', async ()=> {
     await supabase.from('duelos').update({ rematch_requested_by: _me.id, updated_at: new Date().toISOString() }).eq('id', duelo.id);
     ov.remove();
@@ -710,13 +768,13 @@ async function renderFinal(duelo){
 }
 
 window.addEventListener('beforeunload', ()=> { if (_duelStateCache?.status === 'ativa') { forfeitCurrentDuel(); } });
-document.addEventListener('visibilitychange', ()=> { if (document.hidden && _duelStateCache?.status === 'ativa') { forfeitCurrentDuel(); } });
+window.addEventListener('pagehide', ()=> { if (_duelStateCache?.status === 'ativa') { forfeitCurrentDuel(); } });
 
 (async function bootDuel(){
   injectStyles();
   await ensureObservers();
   supabase.auth.onAuthStateChange(async (_evt, session) => {
     if (session?.user) await ensureObservers();
-    else teardownChannels();
+    else await teardownChannels();
   });
 })();
