@@ -29,8 +29,9 @@ async function calcularEstatisticas(uid) {
             livroDetalhes[livroChave] = lidos;
             totalLeituras += lidos;
         }
-        const totalReal = TOTAL_CAPS_LIVRO[livroChave] || Infinity;
-        if (lidos >= totalReal || userData?.[`livroCompleto_${livroChave}`] === true) livrosCompletos++;
+        const totalReal = TOTAL_CAPS_LIVRO[livroChave];
+        // FIX #27: só conta como completo se tiver totalReal definido E lidos atingiram esse total
+        if (totalReal && lidos >= totalReal) livrosCompletos++;
     }
 
     const { nivel, expAtual } = calcularExpELevel(totalLeituras);

@@ -119,7 +119,8 @@ export async function iniciarListenerUsuario(user) {
 
     listenerUsuarioUidAtual = user.id;
 
-    await carregarDadosUsuario(user.id);
+    // FIX #25: carrega dados antes de criar canal; erro aqui não impede canal
+    try { await carregarDadosUsuario(user.id); } catch(e) { console.warn('[iniciarListenerUsuario] carregarDados err:', e); }
 
     realtimeChannel = supabase
       .channel(`user-ui-${user.id}`)

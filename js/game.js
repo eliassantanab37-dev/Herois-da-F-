@@ -15,18 +15,19 @@ import {
     atualizarExpAposLeitura,
     atualizarBarraExpMenu
 } from './badges.js';
-import { renderizarRankingComPresenca } from './duel.js';
+import { renderizarRankingComPresenca, duelTeardown } from './duel.js';
+window.duelTeardown = duelTeardown; // FIX #15: expõe para chamada global
 
 // ── ESTADO ─────────────────────────────────────────────────
 let processandoResposta = false;
 let rolagemMuitoRapida = false;
 let ultimaPosicaoScroll = 0;
 let _rankingChannel = null;
+let _rankingThrottle = null;  // FIX #14
 let _auditoriaChannel = null;
 let _auditoriaUid = null;
 let saldoAnterior = null;
 let _processandoTimeout = null; // FIX: safety timeout para liberar estado travado
-let _rankingRefreshTimer = null;
 
 // FIX: libera processandoResposta após 12s caso algo trave
 function _agendarLiberacaoSegura() {
@@ -337,22 +338,13 @@ async function mostrarRanking() {
         .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'users' },
-            (payload) => {
-                const oldRow = payload.old || {};
-                const newRow = payload.new || {};
-                const changedImportant =
-                    Number(oldRow.points || 0) !== Number(newRow.points || 0) ||
-                    String(oldRow.name || '') !== String(newRow.name || '') ||
-                    String(oldRow.photoURL || oldRow.photourl || '') !== String(newRow.photoURL || newRow.photourl || '');
-                if (changedImportant) _renderizarRanking();
+            () => {
+                // FIX #14: throttle — no máximo 1 re-render a cada 5s
+                if (_rankingThrottle) return;
+                _rankingThrottle = setTimeout(() => { _rankingThrottle = null; _renderizarRanking(); }, 5000);
             }
         )
         .subscribe();
-
-    if (_rankingRefreshTimer) clearInterval(_rankingRefreshTimer);
-    _rankingRefreshTimer = setInterval(() => {
-        if (window._paginaAtualJogo === 'ranking') _renderizarRanking();
-    }, 20000);
 }
 
 
@@ -372,11 +364,10 @@ window.voltarParaBiblia = function () {
         supabase.removeChannel(_rankingChannel);
         _rankingChannel = null;
     }
-
-    if (_rankingRefreshTimer) {
-        clearInterval(_rankingRefreshTimer);
-        _rankingRefreshTimer = null;
-    }
+    // FIX #14: limpa throttle pendente
+    if (_rankingThrottle) { clearTimeout(_rankingThrottle); _rankingThrottle = null; }
+    // FIX #15: limpa canais do duel (inviteChannel, duelChannel, answersChannel)
+    if (window.duelTeardown) window.duelTeardown().catch(()=>{});
 
     if (window._tratarScrollAtivo) {
         window.removeEventListener('scroll', window._tratarScrollAtivo);
