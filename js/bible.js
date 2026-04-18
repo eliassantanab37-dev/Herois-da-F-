@@ -91,7 +91,7 @@ export const bible = {
   segunda_timoteo, tito, filemon,
   // Outras Cartas e Apocalipse
   hebreus, tiago, primeira_pedro, segunda_pedro, primeira_joao,
-  segunda_joao, terceira_joao, judas, apocalipse,
+  segunda_joao, terceira_joao, judas, apocalipse
 };
 
 function safe(text) {

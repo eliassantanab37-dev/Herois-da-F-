@@ -96,34 +96,6 @@ function escapeAttr(v) {
   return escapeHtml(v);
 }
 
-
-
-(function injectPerfilDuelStyle(){
-  if (document.getElementById('perfil-duelo-style')) return;
-  const s = document.createElement('style');
-  s.id = 'perfil-duelo-style';
-  s.textContent = `
-    .perfil-grid.gold-grid div span{color:#d4af37 !important;font-weight:600}
-    .perfil-grid.gold-grid div strong{color:#f6d875 !important;font-weight:800}
-    .perfil-actions.perfil-actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .perfil-actions.perfil-actions-grid + .perfil-actions.perfil-actions-grid{margin-top:12px}
-    .duel-ruby-profile{
-      position:relative;overflow:hidden;
-      background:linear-gradient(135deg,#6e020f 0%,#8f0617 22%,#c11b34 48%,#ef5b71 65%,#8b0617 100%) !important;
-      border:1px solid rgba(255,175,185,.38) !important;
-      color:#fff !important;
-      box-shadow:0 12px 28px rgba(175,18,49,.34), inset 0 1px 0 rgba(255,255,255,.22), inset 0 -8px 18px rgba(72,0,12,.28);
-    }
-    .duel-ruby-profile::before{
-      content:'';position:absolute;top:0;left:-70%;width:40%;height:100%;
-      background:linear-gradient(90deg,transparent,rgba(255,255,255,.38),transparent);
-      transform:skewX(-22deg);animation:duelSweep 2.3s linear infinite;
-    }
-    @keyframes duelSweep{from{left:-70%}to{left:130%}}
-  `;
-  document.head.appendChild(s);
-})();
-
 function alerta(texto) {
   const a = document.createElement('div');
   a.className = 'side-alert';
@@ -609,26 +581,21 @@ function initBusca(meuUid) {
   });
 }
 
-
 async function dadosPerfil(uid, viewerId) {
-  const [userResp, viewerResp, relResp, chaptersResp, trophiesResp, versosResp] = await Promise.all([
+  const [userResp, relResp, chaptersResp, trophiesResp] = await Promise.all([
     supabase.from('users').select('*').eq('uid', uid).maybeSingle(),
-    supabase.from('users').select('points').eq('uid', viewerId).maybeSingle(),
     supabase
       .from('friends')
       .select('id,uid,friend_uid,status')
       .or(`uid.eq.${viewerId},friend_uid.eq.${viewerId}`),
     supabase.from('progresso').select('id').eq('uid', uid).eq('concluido', true),
     supabase.from('user_badges').select('id').eq('uid', uid).eq('conquistada', true),
-    supabase.from('versos_lidos').select('id', { count: 'exact', head: true }).eq('uid', uid).eq('lido', true),
   ]);
 
   if (userResp.error) throw userResp.error;
-  if (viewerResp.error) throw viewerResp.error;
   if (relResp.error) throw relResp.error;
   if (chaptersResp.error) throw chaptersResp.error;
   if (trophiesResp.error) throw trophiesResp.error;
-  if (versosResp.error) throw versosResp.error;
 
   const rows = (relResp.data || []).filter((r) => {
     return (
@@ -643,15 +610,14 @@ async function dadosPerfil(uid, viewerId) {
 
   return {
     userData: userResp.data,
-    viewerPoints: Number(viewerResp.data?.points || 0),
     jaAmigo,
     pendente: euEnvieiPendente,
     pedidoRecebido: eleMeEnviouPendente,
     livrosLidos: (chaptersResp.data || []).length,
     trofeus: (trophiesResp.data || []).length,
-    versosLidos: typeof versosResp.count === 'number' ? versosResp.count : 0,
   };
 }
+
 
 window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
   const reqId = ++_perfilRequestId;
@@ -681,7 +647,7 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
       return;
     }
 
-    const { userData, viewerPoints, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus, versosLidos } = await comTimeout(dadosPerfil(uid, user.id), 8000);
+    const { userData, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus } = await comTimeout(dadosPerfil(uid, user.id), 8000);
 
     if (reqId !== _perfilRequestId) {
       fecharOverlay();
@@ -697,26 +663,6 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
     const nome = userData.name || 'Herói';
     const foto = campo(userData, 'photoURL', 'photourl') || avatar(nome);
     const nivel = Number(campo(userData, 'nivel')) || 1;
-    const pontosOponente = Number(userData.points || 0);
-    const onlineAgora = isOnline(userData);
-    const podeDesafiar = !me && onlineAgora && viewerPoints >= 100 && pontosOponente >= 100;
-    const motivoDesafio = !onlineAgora
-      ? 'Offline'
-      : viewerPoints < 100
-        ? 'Você precisa de 100 pts'
-        : pontosOponente < 100
-          ? 'Oponente sem 100 pts'
-          : '';
-
-    const acaoPrincipal = me
-      ? '<button id="perfil-mudar-foto" class="glass-btn gold">Mudar foto</button>'
-      : jaAmigo
-        ? '<button id="perfil-msg-btn" class="glass-btn gold">Enviar msg</button>'
-        : pedidoRecebido
-          ? '<button id="perfil-accept-btn" class="glass-btn gold">Aceitar</button>'
-          : pendente
-            ? '<button class="glass-btn dark" disabled>Pendente</button>'
-            : '<button id="perfil-add-btn" class="glass-btn gold">+Amigo</button>';
 
     overlay.innerHTML = `
       <div class="perfil-modal">
@@ -725,19 +671,26 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
         <div class="perfil-photo-wrap">
           <img class="perfil-photo" src="${escapeAttr(foto)}" onerror="this.src='${avatar(nome)}'">
         </div>
-        <div class="perfil-name" style="color:#f8e7a6">${escapeHtml(nome)}</div>
-        <div class="perfil-points" style="color:#d4af37">${pontosOponente} pts</div>
-        <div class="perfil-grid gold-grid">
+        <div class="perfil-name">${escapeHtml(nome)}</div>
+        <div class="perfil-points">${Number(userData.points) || 0} pts</div>
+        <div class="perfil-grid">
           <div><span>Nível</span><strong>${nivel}</strong></div>
-          <div><span>Versos lidos</span><strong>${versosLidos}</strong></div>
+          <div><span>Idade</span><strong>${idade(userData.data_nascimento)}</strong></div>
           <div><span>Livros lidos</span><strong>${livrosLidos}</strong></div>
           <div><span>Troféus</span><strong>${trofeus}</strong></div>
         </div>
-        <div class="perfil-actions perfil-actions-grid">
+        <div class="perfil-actions">
           <button id="perfil-badges-btn" class="glass-btn dark">Troféus</button>
-          ${acaoPrincipal}
+          ${me
+            ? '<button id="perfil-mudar-foto" class="glass-btn gold">Mudar foto</button>'
+            : jaAmigo
+              ? '<button id="perfil-msg-btn" class="glass-btn gold">Enviar msg</button>'
+              : pedidoRecebido
+                ? '<button id="perfil-accept-btn" class="glass-btn gold">Aceitar</button>'
+                : pendente
+                  ? '<button class="glass-btn dark" disabled>Pendente</button>'
+                  : '<button id="perfil-add-btn" class="glass-btn gold">+Amigo</button>'}
         </div>
-        ${!me ? `<div class="perfil-actions perfil-actions-grid">${podeDesafiar ? '<button id="perfil-duel-btn" class="glass-btn duel-ruby-profile">Desafiar</button>' : `<button class="glass-btn dark" disabled>${escapeHtml(motivoDesafio)}</button>`}</div>` : ''}
         <div id="perfil-extra"></div>
       </div>`;
 
@@ -756,10 +709,6 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
       fecharOverlay();
     });
     overlay.querySelector('#perfil-badges-btn')?.addEventListener('click', () => window.mostrarBadges?.());
-    overlay.querySelector('#perfil-duel-btn')?.addEventListener('click', () => {
-      fecharOverlay();
-      window.iniciarDesafioUsuario?.({ uid, nome, foto, points: pontosOponente });
-    });
   } catch (e) {
     console.error('[perfil] erro:', e);
     fecharOverlay();
