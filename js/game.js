@@ -15,15 +15,13 @@ import {
     atualizarExpAposLeitura,
     atualizarBarraExpMenu
 } from './badges.js';
-import { renderizarRankingComPresenca, duelTeardown } from './duel.js';
-window.duelTeardown = duelTeardown; // FIX #15: expõe para chamada global
+import { renderizarRankingComPresenca } from './duel.js';
 
 // ── ESTADO ─────────────────────────────────────────────────
 let processandoResposta = false;
 let rolagemMuitoRapida = false;
 let ultimaPosicaoScroll = 0;
 let _rankingChannel = null;
-let _rankingThrottle = null;  // FIX #14
 let _auditoriaChannel = null;
 let _auditoriaUid = null;
 let saldoAnterior = null;
@@ -338,11 +336,7 @@ async function mostrarRanking() {
         .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'users' },
-            () => {
-                // FIX #14: throttle — no máximo 1 re-render a cada 5s
-                if (_rankingThrottle) return;
-                _rankingThrottle = setTimeout(() => { _rankingThrottle = null; _renderizarRanking(); }, 5000);
-            }
+            () => { _renderizarRanking(); }
         )
         .subscribe();
 }
@@ -364,10 +358,6 @@ window.voltarParaBiblia = function () {
         supabase.removeChannel(_rankingChannel);
         _rankingChannel = null;
     }
-    // FIX #14: limpa throttle pendente
-    if (_rankingThrottle) { clearTimeout(_rankingThrottle); _rankingThrottle = null; }
-    // FIX #15: limpa canais do duel (inviteChannel, duelChannel, answersChannel)
-    if (window.duelTeardown) window.duelTeardown().catch(()=>{});
 
     if (window._tratarScrollAtivo) {
         window.removeEventListener('scroll', window._tratarScrollAtivo);
