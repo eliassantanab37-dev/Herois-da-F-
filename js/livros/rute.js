@@ -62,7 +62,7 @@ export const rute = {
 ⁵ Depois, disse Boaz a seu moço que estava posto sobre os segadores: De quem é esta moça?
 ⁶ E respondeu o moço que estava posto sobre os segadores e disse: Esta é a moça moabita que voltou com Noemi dos campos de Moabe.
 ⁷ Disse-me ela: Deixa-me colher espigas e ajuntá-las entre as gavelas após os segadores. Assim, ela veio e, desde pela manhã, está aqui até agora, a não ser um pouco que esteve sentada em casa.
-#  Boaz fala a Rute benignamente
+  Boaz fala a Rute benignamente
 ⁸ Então, disse Boaz a Rute: Não ouves, filha minha? Não vás colher a outro campo, nem tampouco passes daqui; porém aqui te ajuntarás com as minhas moças.
 ⁹ Os teus olhos estarão atentos no campo que segarem, e irás após elas; não dei ordem aos moços, que te não toquem? Tendo tu sede, vai aos vasos e bebe do que os moços tirarem.
 ¹⁰ Então, ela caiu sobre o seu rosto, e se inclinou à terra, e disse-lhe: Por que achei graça em teus olhos, para que faças caso de mim, sendo eu uma estrangeira?
@@ -104,7 +104,7 @@ export const rute = {
 ⁵ E ela lhe disse: Tudo quanto me disseres farei.
 ⁶ Então, foi para a eira e fez conforme tudo quanto sua sogra lhe tinha ordenado.
 ⁷ Havendo, pois, Boaz comido e bebido, e estando já o seu coração alegre, veio deitar-se ao pé de um monte de cereais; então, veio ela de mansinho, e lhe descobriu os pés, e se deitou.
-#  Boaz promete a Rute casar com ela
+  Boaz promete a Rute casar com ela
 ⁸ E sucedeu que, pela meia-noite, o homem estremeceu e se voltou; e eis que uma mulher jazia a seus pés.
 ⁹ E disse ele: Quem és tu? E ela disse: Sou Rute, tua serva; estende, pois, tua aba sobre a tua serva, porque tu és o remidor.
 ¹⁰ E disse ele: Bendita sejas tu do Senhor, minha filha; melhor fizeste esta tua última beneficência do que a primeira, pois após nenhuns jovens foste, quer pobres quer ricos.
@@ -133,7 +133,7 @@ export const rute = {
         },
         4: {
             titulo: "Casamento de Rute e Boaz",
-            texto: `#  Rute
+            texto: `  Rute
 ¹ E Boaz subiu à porta e assentou-se ali; e eis que o remidor de que Boaz tinha falado ia passando e disse-lhe: Ó fulano, desvia-te para cá e assenta-te aqui. E desviou-se para ali e assentou-se.
 ² Então, tomou dez homens dos anciãos da cidade e disse: Assentai-vos aqui. E assentaram-se.
 ³ Então, disse ao remidor: Aquela parte da terra que foi de Elimeleque, nosso irmão, Noemi, que tornou da terra dos moabitas, a vendeu.
@@ -146,7 +146,7 @@ export const rute = {
 ¹⁰ e de que também tomo por mulher a Rute, a moabita, que foi mulher de Malom, para suscitar o nome do falecido sobre a sua herdade, para que o nome do falecido não seja desarraigado dentre seus irmãos e da porta do seu lugar; disto sois hoje testemunhas.
 ¹¹ E todo o povo que estava na porta e os anciãos disseram: Somos testemunhas; o Senhor faça a esta mulher, que entra na tua casa, como a Raquel e como a Leia, que ambas edificaram a casa de Israel; e há-te já valorosamente em Efrata e faze-te nome afamado em Belém.
 ¹² E seja a tua casa como a casa de Perez ( que Tamar teve de Judá), da semente que o Senhor te der desta moça.
-#  Rute dá à luz Obede, avô de Davi
+ Rute dá à luz Obede, avô de Davi
 ¹³ Assim, tomou Boaz a Rute, e ela lhe foi por mulher; e ele entrou a ela, e o Senhor lhe deu conceição, e ela teve um filho.
 ¹⁴ Então, as mulheres disseram a Noemi: Bendito seja o Senhor, que não deixou, hoje, de te dar remidor, e seja o seu nome afamado em Israel.
 ¹⁵ Ele te será recriador da alma e conservará a tua velhice, pois tua nora, que te ama, o teve, e ela te é melhor do que sete filhos.

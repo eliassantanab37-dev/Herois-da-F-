@@ -391,7 +391,7 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
 
     limparUITravada();
 
-    // FIX: mostra conteúdo mínimo imediatamente — evita tela preta enquanto carrega
+    // Mostra conteúdo mínimo imediatamente — evita tela preta enquanto carrega
     container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
         <div style="text-align:center;color:#d4af37;font-family:Cinzel,serif;">
             <div style="font-size:2rem;margin-bottom:12px;">📖</div>
@@ -399,7 +399,7 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
         </div>
     </div>`;
 
-    // FIX: limpa scroll listener anterior SEMPRE antes de criar novo
+    // Limpa scroll listener anterior SEMPRE antes de criar novo
     if (window._tratarScrollAtivo) {
         window.removeEventListener('scroll', window._tratarScrollAtivo);
         window._tratarScrollAtivo = null;
@@ -453,12 +453,27 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
             </div>
         `;
 
-        const bgUrl = livro.background.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundAttachment = 'fixed';
+        // Background agora é opcional
+        const bgBase = String(livro?.background || '').trim();
 
-        // FIX: cria scroll listener com referência limpa
+        if (bgBase) {
+            const bgUrl = bgBase
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+
+            document.body.style.backgroundImage =
+                `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url('${bgUrl}')`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundAttachment = 'fixed';
+        } else {
+            // Se não tiver background, não quebra.
+            // Apenas mantém o fundo padrão do app.
+            document.body.style.backgroundImage = '';
+            document.body.style.backgroundSize = '';
+            document.body.style.backgroundAttachment = '';
+        }
+
+        // Cria scroll listener com referência limpa
         const tratarScroll = () => {
             if (!document.querySelector('#texto-leitura')) {
                 window.removeEventListener('scroll', tratarScroll);
@@ -490,7 +505,6 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
         window.addEventListener('scroll', tratarScroll, { passive: true });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }).catch(err => {
-        // FIX: evita tela preta em caso de falha no import
         console.error('[exibirCapitulo] erro:', err);
         const c = document.getElementById('bible-text');
         if (c) c.innerHTML = `<div style="color:#fff;text-align:center;padding:40px;">
