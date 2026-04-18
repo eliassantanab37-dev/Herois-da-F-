@@ -314,6 +314,7 @@ async function mostrarRanking() {
         <div style="padding:20px; text-align:center; min-height:100vh; position:relative; z-index:10;">
             <h2 style="color:#d4af37; font-family:'Cinzel'; font-size:2rem; text-shadow:2px 2px 8px #000;">
                 🏆 RANKING DOS HERÓIS
+              Em breve desafios biblicos!
             </h2>
 
             <div id="ranking-lista" style="margin-top:20px;">
