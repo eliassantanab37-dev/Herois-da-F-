@@ -1,21 +1,32 @@
+// js/duel.js — Heróis da Fé — versão sem revanche e com pontos em tempo real
 
 import { supabase } from './config.js';
 
+// ── CONSTANTES ─────────────────────────────────────────────
 const ROUND_SECONDS = 20;
 const TOTAL_ROUNDS = 10;
 const DUEL_WIN_POINTS = 100;
 const ONLINE_MS = 90000;
+const INVITE_TTL_MS = 30000;
 
+// ── ESTADO GLOBAL ──────────────────────────────────────────
 let _me = null;
 let _inviteChannel = null;
+let _inviteSentChannel = null;
 let _duelChannel = null;
 let _answersChannel = null;
+let _presenceChannel = null;
 let _renderTimer = null;
+let _invitePollTimer = null;
 let _duelStateCache = null;
 let _currentDuelId = null;
-let _finalOverlayOpen = false;
-window.__duelRankingContextByUid = window.__duelRankingContextByUid || {};
+let _answerSubmitting = false;
+let _aceitando = false;
+let _ensureMutex = Promise.resolve();
+const _advancingLocks = new Set();
+const _closedFinalDuels = new Set();
 
+// ── BANCO DE QUESTÕES ──────────────────────────────────────
 const QUESTION_BANK = [
   {id:'q001',p:'Quem construiu a arca por mandado de Deus?',a:['Noé','Moisés','Abraão','Davi'],c:0},
   {id:'q002',p:'Qual foi o primeiro milagre de Jesus nas bodas de Caná?',a:['Transformar água em vinho','Curar um cego','Ressuscitar Lázaro','Multiplicar pães'],c:0},
@@ -63,7 +74,7 @@ const QUESTION_BANK = [
   {id:'q044',p:'Qual é a parábola do filho que desperdiçou a herança?',a:['Filho pródigo','Semeador','Talentos','Ovelha perdida'],c:0},
   {id:'q045',p:'Quem escreveu o livro de Atos dos Apóstolos?',a:['Lucas','João','Paulo','Pedro'],c:0},
   {id:'q046',p:'O que simboliza a pomba no batismo de Jesus?',a:['O Espírito Santo','A paz','A pureza','O perdão'],c:0},
-  {id:'q047',p:'Em qual livro está escrito: “No princípio era o Verbo”?',a:['João','Gênesis','Hebreus','Apocalipse'],c:0},
+  {id:'q047',p:'Em qual livro está escrito: "No princípio era o Verbo"?',a:['João','Gênesis','Hebreus','Apocalipse'],c:0},
   {id:'q048',p:'Qual é o livro mais curto da Bíblia?',a:['3 João','Filemon','Judas','Obadias'],c:0},
   {id:'q049',p:'Quem foi o primeiro mártir cristão registrado?',a:['Estêvão','Tiago','Pedro','Paulo'],c:0},
   {id:'q050',p:'Em qual cidade Paulo e Silas foram presos e cantaram hinos?',a:['Filipos','Corinto','Éfeso','Tessalônica'],c:0},
@@ -79,644 +90,1419 @@ const QUESTION_BANK = [
   {id:'q060',p:'Qual rainha visitou Salomão para testar sua sabedoria?',a:['Rainha de Sabá','Jezabel','Atalias','Débora'],c:0}
 ];
 
-function injectStyles(){
+// ── ESTILOS ────────────────────────────────────────────────
+function injectStyles() {
   if (document.getElementById('duel-styles-final')) return;
+
   const s = document.createElement('style');
   s.id = 'duel-styles-final';
   s.textContent = `
-  .presence-dot{position:absolute;right:1px;bottom:1px;width:12px;height:12px;border-radius:50%;border:2px solid #111;z-index:3}
-  .presence-dot.online{background:#00e676;box-shadow:0 0 8px #00e676,0 0 16px rgba(0,230,118,.5);animation:pdPulse 1.8s ease infinite}
-  .presence-dot.offline{background:#f44336;box-shadow:0 0 8px rgba(244,67,54,.35)}
-  @keyframes pdPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
-  .duel-ruby-btn{position:relative;overflow:hidden;background:linear-gradient(135deg,#6e020f 0%,#8f0617 22%,#c11b34 48%,#ef5b71 65%,#8b0617 100%);color:#fff;border:1px solid rgba(255,175,185,.4);border-radius:14px;padding:14px 22px;font-family:'Cinzel',serif;font-weight:800;letter-spacing:.6px;cursor:pointer;box-shadow:0 14px 28px rgba(175,18,49,.28),inset 0 1px 0 rgba(255,255,255,.22),inset 0 -8px 18px rgba(72,0,12,.28)}
-  .duel-ruby-btn::before{content:'';position:absolute;top:0;left:-70%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-22deg);animation:duelRubyShine 2.4s linear infinite}
-  @keyframes duelRubyShine{from{left:-70%}to{left:130%}}
-  .duel-overlay,.duel-final,.duel-rematch{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.82);backdrop-filter:blur(10px)}
-  .duel-box{width:min(92vw,420px);background:linear-gradient(170deg,#160607 0%,#0d0d0d 70%);border:1px solid rgba(212,175,55,.28);border-radius:22px;padding:28px 22px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
-  .duel-box h3,.duel-box h2{margin:0 0 8px;font-family:'Cinzel',serif;color:#f4d15f;text-align:center}
-  .duel-box p{margin:0 0 18px;color:#f5f5f5;text-align:center;line-height:1.5}
-  .duel-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .duel-btn-silver{position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(52,52,52,.95),rgba(130,130,130,.95) 48%,rgba(235,235,235,.98) 60%,rgba(84,84,84,.96));color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px 18px;font-weight:800;cursor:pointer;box-shadow:0 14px 24px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.18)}
-  .duel-btn-silver::before{content:'';position:absolute;top:0;left:-70%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-22deg);animation:silverShine 2.4s linear infinite}
-  @keyframes silverShine{from{left:-70%}to{left:130%}}
-  .duel-btn-dark{background:#232323;color:#b5b5b5;border:1px solid #3b3b3b;border-radius:14px;padding:14px 18px;font-weight:700;cursor:pointer}
-  .duel-arena{position:fixed;inset:0;z-index:9998;background:linear-gradient(180deg,#0a0000 0%,#130505 30%,#070707 100%);overflow:auto}
-  .duel-arena .arena-wrap{max-width:760px;margin:0 auto;padding:0 14px 24px}
-  .arena-head{position:sticky;top:0;z-index:4;background:rgba(0,0,0,.78);backdrop-filter:blur(10px);border-bottom:1px solid rgba(212,175,55,.25);padding:14px}
-  .arena-topline{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .arena-opponent{display:flex;align-items:center;gap:10px;color:#f7dd85;font-weight:800}
-  .arena-opponent img{width:48px;height:48px;border-radius:50%;border:2px solid #d4af37;object-fit:cover}
-  .arena-head-meta{color:#d4af37;font-family:'Cinzel',serif;font-size:.95rem;font-weight:800}
-  .arena-question{margin-top:18px;background:rgba(255,255,255,.04);border:1px solid rgba(212,175,55,.2);border-radius:18px;padding:18px;color:#fff}
-  .arena-question .q-label{color:#d4af37;font-size:.8rem;letter-spacing:.5px;margin-bottom:10px;font-weight:700}
-  .arena-question .q-text{font-size:1.1rem;line-height:1.55}
-  .arena-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
-  .arena-opt{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;border-radius:14px;padding:14px 12px;min-height:60px;text-align:center;font-weight:700;cursor:pointer;transition:.18s}
-  .arena-opt:hover:not(:disabled){border-color:#d4af37;background:rgba(212,175,55,.12)}
-  .arena-opt:disabled{opacity:.92;cursor:not-allowed}
-  .arena-opt.selected{border-color:#d4af37;background:rgba(212,175,55,.14)}
-  .arena-opt.correct{border-color:#2ecc71;background:rgba(46,204,113,.18);color:#a2ffca}
-  .arena-opt.wrong{border-color:#ff6b6b;background:rgba(255,107,107,.12);color:#ffc8c8}
-  .arena-status-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
-  .arena-status-card{border:1px solid rgba(212,175,55,.18);background:rgba(255,255,255,.03);border-radius:14px;padding:12px;text-align:center;color:#d4af37;font-weight:700}
-  .arena-status-card small{display:block;color:#9e9e9e;font-weight:500;margin-top:6px}
-  .arena-timer{margin-top:16px;text-align:center;color:#f6d875;font-family:'Cinzel',serif;font-size:1.2rem;font-weight:900}
-  .arena-score{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:12px 16px;border:1px solid rgba(212,175,55,.18);border-radius:16px;background:rgba(255,255,255,.03)}
-  .arena-score .n{font-size:1.8rem;font-family:'Cinzel',serif;color:#f6d875}
-  .arena-quit{margin-top:18px;width:100%;background:#262626;color:#c8c8c8;border:1px solid #3a3a3a;border-radius:14px;padding:13px;font-weight:700;cursor:pointer}
-  .champion-tag{display:inline-block;margin-top:8px;padding:6px 12px;border-radius:999px;background:linear-gradient(90deg,#a46c00,#d4af37,#fff1a8,#d4af37,#a46c00);background-size:200% 100%;color:#1a1200;font-weight:900;animation:championGlow 2.2s linear infinite;box-shadow:0 0 14px rgba(212,175,55,.35)}
-  @keyframes championGlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-  .silver-tag{display:inline-block;margin-top:8px;padding:6px 12px;border-radius:999px;background:linear-gradient(90deg,#676767,#d9d9d9,#8f8f8f);background-size:200% 100%;color:#1c1c1c;font-weight:900;animation:championGlow 2.2s linear infinite}
-  .desist-tag{display:inline-block;margin-top:8px;padding:6px 12px;border-radius:999px;background:#d2d2d2;color:#4d4d4d;font-weight:900}
-  .final-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
-  .final-card{border:1px solid rgba(212,175,55,.18);border-radius:18px;padding:14px;background:rgba(255,255,255,.03);text-align:center}
-  .final-card img{width:64px;height:64px;border-radius:50%;border:2px solid #d4af37;object-fit:cover}
-  .final-card .name{margin-top:10px;color:#fff;font-weight:800}
-  .final-card .score{color:#f6d875;font-size:1.6rem;font-family:'Cinzel',serif;font-weight:900}
-  .final-buttons{display:grid;grid-template-columns:1fr;gap:12px;margin-top:18px}
-  @media (max-width:640px){.arena-grid{grid-template-columns:1fr}.final-grid{grid-template-columns:1fr 1fr}}
+  @keyframes silverShine { from { left: -70%; } to { left: 130%; } }
+  @keyframes championGlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+  @keyframes pdPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+
+  .presence-dot { position: absolute; right: 1px; bottom: 1px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #111; z-index: 3; }
+  .presence-dot.online { background: #00e676; box-shadow: 0 0 8px #00e676, 0 0 16px rgba(0,230,118,.5); animation: pdPulse 1.8s ease infinite; }
+  .presence-dot.offline { background: #f44336; box-shadow: 0 0 8px rgba(244,67,54,.35); }
+
+  .duel-overlay, .duel-final {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.82); backdrop-filter: blur(10px);
+  }
+  .duel-overlay { z-index: 9999; }
+  .duel-final { z-index: 10000; }
+
+  .duel-box {
+    width: min(94vw, 520px);
+    background: linear-gradient(170deg, #160607 0%, #0d0d0d 70%);
+    border: 1px solid rgba(212,175,55,.28);
+    border-radius: 22px; padding: 28px 22px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  }
+
+  .duel-box h2 {
+    margin: 0 0 8px;
+    font-family: 'Cinzel', serif;
+    color: #f4d15f;
+    text-align: center;
+  }
+
+  .duel-box p {
+    margin: 0 0 18px;
+    color: #f5f5f5;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .duel-btn-silver {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #a0a0a0, #ffffff, #a0a0a0);
+    color: #1a1a1a; border: 1px solid #fff; border-radius: 14px;
+    padding: 14px 18px; font-weight: 900; cursor: pointer; width: 100%;
+  }
+  .duel-btn-silver::before {
+    content: ''; position: absolute; top: 0; left: -70%;
+    width: 40%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.8), transparent);
+    transform: skewX(-22deg); animation: silverShine 2.4s linear infinite;
+  }
+  .duel-btn-silver:disabled { opacity: .55; cursor: not-allowed; }
+
+  .duel-btn-matte-red {
+    background: #8b1e28; color: #fff; border: 1px solid #6b141d;
+    border-radius: 14px; padding: 14px 18px; font-weight: 700; cursor: pointer; width: 100%;
+  }
+
+  .duel-btn-dark {
+    background: #232323; color: #b5b5b5; border: 1px solid #3b3b3b;
+    border-radius: 14px; padding: 14px 18px; font-weight: 700; cursor: pointer; width: 100%;
+  }
+
+  .duel-arena {
+    position: fixed; inset: 0; z-index: 9998;
+    background: linear-gradient(180deg, #0a0000 0%, #130505 30%, #070707 100%);
+    overflow: auto;
+  }
+
+  .duel-arena .arena-wrap { max-width: 760px; margin: 0 auto; padding: 0 14px 24px; }
+
+  .arena-head {
+    position: sticky; top: 0; z-index: 4; background: rgba(0,0,0,.78);
+    backdrop-filter: blur(10px); border-bottom: 1px solid rgba(212,175,55,.25); padding: 14px;
+  }
+
+  .arena-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .arena-opponent { display: flex; align-items: center; gap: 10px; color: #f7dd85; font-weight: 800; }
+  .arena-opponent img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #d4af37; object-fit: cover; }
+  .arena-head-meta { color: #d4af37; font-family: 'Cinzel', serif; font-size: .95rem; font-weight: 800; }
+
+  .arena-question {
+    margin-top: 18px; background: rgba(255,255,255,.04);
+    border: 1px solid rgba(212,175,55,.2);
+    border-radius: 18px; padding: 18px; color: #fff;
+  }
+
+  .arena-question .q-label { color: #d4af37; font-size: .8rem; letter-spacing: .5px; margin-bottom: 10px; font-weight: 700; }
+  .arena-question .q-text { font-size: 1.1rem; line-height: 1.55; }
+
+  .arena-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+
+  .arena-opt {
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.05); color: #fff;
+    border-radius: 14px; padding: 14px 12px; min-height: 60px;
+    text-align: center; font-weight: 700; cursor: pointer; transition: .18s;
+  }
+
+  .arena-opt:hover:not(:disabled) { border-color: #d4af37; background: rgba(212,175,55,.12); }
+  .arena-opt:disabled { opacity: .92; cursor: not-allowed; }
+  .arena-opt.selected { border-color: #d4af37; background: rgba(212,175,55,.14); }
+
+  .arena-status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+
+  .arena-status-card {
+    border: 1px solid rgba(212,175,55,.18);
+    background: rgba(255,255,255,.03);
+    border-radius: 14px; padding: 12px; text-align: center; color: #d4af37; font-weight: 700;
+  }
+
+  .arena-status-card small { display: block; color: #9e9e9e; font-weight: 500; margin-top: 6px; }
+
+  .arena-timer { margin-top: 16px; text-align: center; color: #f6d875; font-family: 'Cinzel', serif; font-size: 1.2rem; font-weight: 900; }
+
+  .arena-score {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 16px; padding: 12px 16px; border: 1px solid rgba(212,175,55,.18);
+    border-radius: 16px; background: rgba(255,255,255,.03);
+  }
+
+  .arena-score .n { font-size: 1.8rem; font-family: 'Cinzel', serif; color: #f6d875; }
+
+  .arena-quit {
+    margin-top: 18px; width: 100%; background: #262626; color: #c8c8c8;
+    border: 1px solid #3a3a3a; border-radius: 14px; padding: 13px; font-weight: 700; cursor: pointer;
+  }
+
+  .champion-tag {
+    display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px;
+    background: linear-gradient(90deg, #a46c00, #d4af37, #fff1a8, #d4af37, #a46c00);
+    background-size: 200% 100%; color: #1a1200; font-weight: 900;
+    animation: championGlow 2.2s linear infinite; box-shadow: 0 0 14px rgba(212,175,55,.35);
+  }
+
+  .silver-tag {
+    display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px;
+    background: linear-gradient(90deg, #676767, #d9d9d9, #8f8f8f);
+    background-size: 200% 100%; color: #1c1c1c; font-weight: 900;
+    animation: championGlow 2.2s linear infinite;
+  }
+
+  .desist-tag {
+    display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px;
+    background: #d2d2d2; color: #4d4d4d; font-weight: 900;
+  }
+
+  .final-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+
+  .final-card {
+    border: 1px solid rgba(212,175,55,.18); border-radius: 18px; padding: 14px;
+    background: rgba(255,255,255,.03); text-align: center;
+  }
+
+  .final-card img { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #d4af37; object-fit: cover; }
+  .final-card .name { margin-top: 10px; color: #fff; font-weight: 800; }
+  .final-card .score { color: #f6d875; font-size: 1.6rem; font-family: 'Cinzel', serif; font-weight: 900; }
+
+  .final-buttons { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 18px; }
+
+  @media (max-width: 640px) {
+    .arena-grid { grid-template-columns: 1fr; }
+    .final-grid { grid-template-columns: 1fr 1fr; }
+  }
   `;
   document.head.appendChild(s);
 }
 
-function avatar(nome='?'){
-  const ini = String(nome||'?').trim().split(/\s+/).map(p=>p[0]).join('').slice(0,2).toUpperCase() || '?';
-  const cor = ['#d4af37','#2ecc71','#4a90e2','#e74c3c','#9b59b6'][Math.abs((nome||'').charCodeAt(0)||0)%5];
-  return `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="${cor}"/><text x="100" y="108" font-size="80" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial">${ini}</text></svg>`)}`;
-}
-function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function isOnline(user){const t=user?.lastUpdate||user?.lastupdate; return !!(t && (Date.now()-new Date(t).getTime()<ONLINE_MS));}
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-
-function calcNivel(pts){
-  if (pts < 100) return 'Servo Fiel';
-  if (pts < 500) return 'Levita Louvador';
-  if (pts < 1000) return 'Soldado de Cristo';
-  if (pts < 2000) return 'Semeador da Palavra';
-  if (pts < 3000) return 'Missionário(a)';
-  if (pts < 4500) return 'Guarda de Sião';
-  if (pts < 6000) return 'Vencedor em Cristo';
-  if (pts < 8000) return 'Ungido por Deus';
-  if (pts < 10500) return 'Fiel Adorador';
-  if (pts < 13500) return 'Embaixador do Reino';
-  if (pts < 17000) return 'Apóstolo';
-  if (pts < 21000) return 'Profeta de Deus';
-  if (pts < 26000) return 'Guerreiro de Gileade';
-  if (pts < 32000) return 'Herdeiro do Eterno';
-  return 'Herói da Fé Eterno';
+// ── UTILITÁRIOS ────────────────────────────────────────────
+function avatar(nome = '?') {
+  const ini = String(nome || '?').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || '?';
+  const cor = ['#d4af37', '#2ecc71', '#4a90e2', '#e74c3c', '#9b59b6'][Math.abs((nome || '').charCodeAt(0) || 0) % 5];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="${cor}"/><text x="100" y="108" font-size="80" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial">${ini}</text></svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-function teardownChannels(){
-  if (_inviteChannel) { supabase.removeChannel(_inviteChannel); _inviteChannel = null; }
-  if (_duelChannel) { supabase.removeChannel(_duelChannel); _duelChannel = null; }
-  if (_answersChannel) { supabase.removeChannel(_answersChannel); _answersChannel = null; }
-  if (_renderTimer) { clearInterval(_renderTimer); _renderTimer = null; }
+function esc(v = '') {
+  return String(v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function toast(msg, ok = true) {
+  try {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+      z-index:10050;background:${ok ? '#102814' : '#2a1010'};
+      color:${ok ? '#9df4ac' : '#ffb2b2'};
+      border:1px solid ${ok ? 'rgba(46,204,113,.4)' : 'rgba(255,107,107,.35)'};
+      border-radius:14px;padding:12px 16px;font-weight:700;
+      box-shadow:0 12px 24px rgba(0,0,0,.35)
+    `;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  } catch {
+    alert(msg);
+  }
+}
+
+function removeOverlay(sel) {
+  document.querySelector(sel)?.remove();
+}
+
+function cleanupTimer() {
+  if (_renderTimer) {
+    clearInterval(_renderTimer);
+    _renderTimer = null;
+  }
+}
+
+function normalizeQuestion(q = {}) {
+  const opcoes = Array.isArray(q.opcoes) ? q.opcoes : Array.isArray(q.a) ? q.a : [];
+  const corretaRaw = (q.correta ?? q.c);
+  return {
+    id: q.id || '',
+    pergunta: q.pergunta || q.p || '',
+    opcoes,
+    correta: Number.isFinite(Number(corretaRaw)) ? Number(corretaRaw) : 0
+  };
+}
+
+function normalizeQuestionList(arr = []) {
+  return (Array.isArray(arr) ? arr : [])
+    .map(normalizeQuestion)
+    .filter(q => q && q.pergunta && Array.isArray(q.opcoes) && q.opcoes.length);
+}
+
+function getMyUid() {
+  return _me?.id || null;
+}
+
+function isOnline(user) {
+  const t = user?.lastUpdate || user?.lastupdate;
+  if (!t) return false;
+  const diff = Date.now() - new Date(t).getTime();
+  return diff >= 0 && diff < ONLINE_MS;
+}
+
+function qIndex(roundNumber) {
+  return Math.max(0, Number(roundNumber || 1) - 1);
+}
+
+function getOpponentUid(duel, myUid = getMyUid()) {
+  if (!duel || !myUid) return null;
+  return duel.player1_uid === myUid ? duel.player2_uid : duel.player1_uid;
+}
+
+function duelScoreForMe(duel, myUid = getMyUid()) {
+  if (!duel || !myUid) return { me: 0, opp: 0 };
+  const meIsP1 = duel.player1_uid === myUid;
+  return {
+    me: Number(meIsP1 ? duel.score1 : duel.score2) || 0,
+    opp: Number(meIsP1 ? duel.score2 : duel.score1) || 0
+  };
+}
+
+function cleanupRealtime(name) {
+  const map = {
+    _inviteChannel,
+    _inviteSentChannel,
+    _duelChannel,
+    _answersChannel,
+    _presenceChannel
+  };
+
+  const ch = map[name];
+  if (!ch) return;
+
+  try { supabase.removeChannel(ch); } catch {}
+
+  if (name === '_inviteChannel') _inviteChannel = null;
+  if (name === '_inviteSentChannel') _inviteSentChannel = null;
+  if (name === '_duelChannel') _duelChannel = null;
+  if (name === '_answersChannel') _answersChannel = null;
+  if (name === '_presenceChannel') _presenceChannel = null;
+}
+
+function duelTeardownInternal() {
+  cleanupTimer();
+
+  if (_invitePollTimer) {
+    clearInterval(_invitePollTimer);
+    _invitePollTimer = null;
+  }
+
+  cleanupRealtime('_duelChannel');
+  cleanupRealtime('_answersChannel');
+
+  removeOverlay('.duel-overlay');
+  removeOverlay('.duel-arena');
+
   _duelStateCache = null;
   _currentDuelId = null;
-  _finalOverlayOpen = false;
+  _answerSubmitting = false;
+  _aceitando = false;
 }
 
-async function getMe(){
+// ── AUTH / USUÁRIO ─────────────────────────────────────────
+async function getMe() {
+  if (_me) return _me;
   const { data: { user } } = await supabase.auth.getUser();
-  return user || null;
+  _me = user || null;
+  return _me;
 }
 
-async function ensureObservers(){
-  injectStyles();
-  const me = await getMe();
-  if (!me?.id) { teardownChannels(); _me=null; return; }
-  if (_me?.id === me.id && _inviteChannel && _duelChannel && _answersChannel) return;
-  teardownChannels();
-  _me = me;
-
-  _inviteChannel = supabase
-    .channel('duel-invites-'+me.id)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'desafios_duelo',filter:`para_uid=eq.${me.id}`}, async (payload)=>{
-      if (payload.new?.status === 'pendente') mostrarConviteDesafio(payload.new);
-    })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'desafios_duelo',filter:`para_uid=eq.${me.id}`}, async (payload)=>{
-      if (payload.new?.status === 'pendente') mostrarConviteDesafio(payload.new);
-    })
-    .subscribe();
-
-  const duelFilter = `player1_uid=eq.${me.id}`;
-  const duelFilter2 = `player2_uid=eq.${me.id}`;
-  _duelChannel = supabase.channel('duels-'+me.id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'duelos',filter:duelFilter}, ()=> carregarDueloAtivo())
-    .on('postgres_changes',{event:'*',schema:'public',table:'duelos',filter:duelFilter2}, ()=> carregarDueloAtivo())
-    .subscribe();
-
-  _answersChannel = supabase.channel('duel-answers-'+me.id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'duelo_respostas'}, ()=> {
-      if (_currentDuelId) carregarDuelo(_currentDuelId);
-    })
-    .subscribe();
-
-  carregarDueloAtivo();
+async function getUser(uid) {
+  const { data } = await supabase.from('users').select('*').eq('uid', uid).single();
+  return data || null;
 }
 
-async function carregarDueloAtivo(){
-  if (!_me?.id) return;
-  const { data } = await supabase
-    .from('duelos')
+function atualizarPontosNaTela(userRow) {
+  const pontos = Number(userRow?.points || 0);
+
+  const el1 = document.getElementById('user-points-display');
+  if (el1) el1.textContent = `${pontos} pontos`;
+
+  const el2 = document.getElementById('user-points');
+  if (el2) el2.textContent = pontos;
+
+  const el3 = document.getElementById('top-user-points');
+  if (el3) el3.textContent = `${pontos} pontos`;
+
+  const el4 = document.getElementById('user-points-display-top');
+  if (el4) el4.textContent = `${pontos} pontos`;
+
+  if (typeof window.renderizarUsuario === 'function') {
+    try { window.renderizarUsuario(userRow); } catch {}
+  }
+}
+
+// ── CONVITES ───────────────────────────────────────────────
+async function limparConvitesPendentesEntre(uidA, uidB) {
+  try {
+    await supabase
+      .from('desafios_duelo')
+      .update({ status: 'expirado', updated_at: new Date().toISOString() })
+      .or(`and(de_uid.eq.${uidA},para_uid.eq.${uidB},status.eq.pendente),and(de_uid.eq.${uidB},para_uid.eq.${uidA},status.eq.pendente)`);
+  } catch (e) {
+    console.warn('[duel] limparConvitesPendentesEntre:', e);
+  }
+}
+
+async function expirarConvitesAntigos(uid) {
+  try {
+    const limite = new Date(Date.now() - INVITE_TTL_MS).toISOString();
+    await supabase
+      .from('desafios_duelo')
+      .update({ status: 'expirado', updated_at: new Date().toISOString() })
+      .eq('para_uid', uid)
+      .eq('status', 'pendente')
+      .lt('created_at', limite);
+  } catch (e) {
+    console.warn('[duel] expirarConvitesAntigos:', e);
+  }
+}
+
+async function buscarConvitePendenteRecente(uid) {
+  const limite = new Date(Date.now() - INVITE_TTL_MS).toISOString();
+
+  const { data, error } = await supabase
+    .from('desafios_duelo')
     .select('*')
-    .or(`player1_uid.eq.${_me.id},player2_uid.eq.${_me.id}`)
-    .in('status',['ativa','finalizada','desistida'])
-    .order('id',{ascending:false})
+    .eq('para_uid', uid)
+    .eq('status', 'pendente')
+    .gte('created_at', limite)
+    .order('created_at', { ascending: false })
     .limit(1);
-  const duelo = data?.[0];
-  if (!duelo) return;
-  await carregarDuelo(duelo.id);
-}
 
-async function carregarDuelo(id){
-  const { data: duelo, error } = await supabase.from('duelos').select('*').eq('id', id).maybeSingle();
-  if (error || !duelo) return;
-  _currentDuelId = duelo.id;
-  _duelStateCache = duelo;
-
-  if (duelo.status === 'ativa') {
-    _finalOverlayOpen = false;
-    await renderArena(duelo);
-  } else if ((duelo.status === 'finalizada' || duelo.status === 'desistida') && !_finalOverlayOpen) {
-    _finalOverlayOpen = true;
-    await renderFinal(duelo);
+  if (error) {
+    console.warn('[duel] buscarConvitePendenteRecente:', error);
+    return null;
   }
+
+  return data?.[0] || null;
 }
 
-async function getUsersMap(ids){
-  const uniq = [...new Set(ids.filter(Boolean))];
-  if (!uniq.length) return {};
-  const { data } = await supabase.from('users').select('*').in('uid', uniq);
-  const map = {};
-  (data || []).forEach(u => map[u.uid]=u);
-  return map;
-}
+async function fetchInviteById(inviteId) {
+  const { data, error } = await supabase
+    .from('desafios_duelo')
+    .select('*')
+    .eq('id', inviteId)
+    .single();
 
-async function pickQuestions(player1, player2){
-  const { data: usados } = await supabase
-    .from('duelo_perguntas_usadas')
-    .select('question_id')
-    .in('uid', [player1, player2]);
-  const usedIds = new Set((usados || []).map(r=>r.question_id));
-  let pool = QUESTION_BANK.filter(q => !usedIds.has(q.id));
-  if (pool.length < TOTAL_ROUNDS) pool = [...QUESTION_BANK];
-  pool = [...pool].sort(()=>Math.random()-0.5).slice(0, TOTAL_ROUNDS);
-  const questions = pool.map((q) => {
-    const options = q.a.map((text, idx) => ({ text, orig: idx })).sort(()=>Math.random()-0.5);
-    const correctIndex = options.findIndex(o => o.orig === q.c);
-    return { id: q.id, pergunta: q.p, opcoes: options.map(o => o.text), correta: correctIndex };
-  });
-  const rows = [];
-  for (const q of questions){
-    rows.push({uid:player1, question_id:q.id, created_at:new Date().toISOString()});
-    rows.push({uid:player2, question_id:q.id, created_at:new Date().toISOString()});
-  }
-  await supabase.from('duelo_perguntas_usadas').insert(rows);
-  return questions;
-}
-
-async function createDuel(player1, player2){
-  const questions = await pickQuestions(player1.uid, player2.uid);
-  const now = new Date().toISOString();
-  const { data, error } = await supabase.from('duelos').insert({
-    player1_uid: player1.uid,
-    player2_uid: player2.uid,
-    current_round: 1,
-    round_started_at: now,
-    questions,
-    status: 'ativa',
-    score1: 0,
-    score2: 0,
-    created_at: now,
-    updated_at: now,
-    points_applied: false,
-    rematch_accepted: false,
-  }).select('*').single();
   if (error) throw error;
   return data;
 }
 
-async function getOpenPendingInvite(toUid, fromUid){
-  const { data } = await supabase.from('desafios_duelo').select('*').eq('de_uid', fromUid).eq('para_uid', toUid).eq('status','pendente').order('id',{ascending:false}).limit(1);
-  return data?.[0] || null;
-}
-
-window.iniciarDesafioUsuario = async function(target){
-  await ensureObservers();
-  const me = _me || await getMe();
-  if (!me?.id) return;
-  if (!target?.uid || target.uid === me.id) return;
-  if (Number(target.points || 0) < 100) return toast('Esse jogador ainda não tem 100 pontos.');
-
-  const { data: meuRow } = await supabase.from('users').select('name, photoURL, photourl, points').eq('uid', me.id).single();
-  const myPoints = Number(meuRow?.points || 0);
-  if (myPoints < 100) return toast('Você precisa de pelo menos 100 pontos para desafiar.');
-
-  const existingActive = await supabase.from('duelos').select('id,status').or(`and(player1_uid.eq.${me.id},player2_uid.eq.${target.uid}),and(player1_uid.eq.${target.uid},player2_uid.eq.${me.id})`).eq('status','ativa').limit(1);
-  if ((existingActive.data || []).length) return toast('Já existe uma partida ativa com esse jogador.');
-
-  const openInvite = await getOpenPendingInvite(target.uid, me.id);
-  if (openInvite) return toast('Desafio já enviado.');
-
-  const now = new Date().toISOString();
+async function insertInvite(fromUser, toUser) {
   const payload = {
-    de_uid: me.id,
-    de_nome: meuRow?.name || 'Herói',
-    de_foto: meuRow?.photoURL || meuRow?.photourl || avatar(meuRow?.name || 'Herói'),
-    para_uid: target.uid,
-    para_nome: target.nome || 'Herói',
-    para_foto: target.foto || avatar(target.nome || 'Herói'),
+    de_uid: fromUser.uid,
+    de_nome: fromUser.nome,
+    de_foto: fromUser.foto,
+    para_uid: toUser.uid,
+    para_nome: toUser.nome,
+    para_foto: toUser.foto,
     status: 'pendente',
-    created_at: now,
-    updated_at: now,
+    updated_at: new Date().toISOString()
   };
-  const { error } = await supabase.from('desafios_duelo').insert(payload);
-  if (error) { console.error(error); toast('Não foi possível enviar o desafio.'); return; }
-  showChallengedAnimation(target.nome || 'Herói');
-};
 
-function showChallengedAnimation(nome){
-  document.querySelector('.duel-rematch')?.remove();
-  const ov = document.createElement('div');
-  ov.className = 'duel-rematch';
-  ov.innerHTML = `<div class="duel-box"><h2>⚔️ Desafio enviado</h2><p>Você desafiou <strong>${esc(nome)}</strong>.</p></div>`;
-  document.body.appendChild(ov);
-  setTimeout(()=> ov.remove(), 1600);
+  const { data, error } = await supabase
+    .from('desafios_duelo')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-function toast(text){
-  const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10001;background:#111;color:#f6d875;padding:12px 18px;border-radius:999px;border:1px solid rgba(212,175,55,.3);box-shadow:0 10px 20px rgba(0,0,0,.35)';
-  el.textContent = text;
-  document.body.appendChild(el);
-  setTimeout(()=>el.remove(), 2000);
+async function updateInvite(inviteId, patch = {}) {
+  const { data, error } = await supabase
+    .from('desafios_duelo')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', inviteId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-async function mostrarConviteDesafio(invite){
-  document.getElementById('duel-invite-overlay')?.remove();
-  const ov = document.createElement('div');
-  ov.id = 'duel-invite-overlay';
-  ov.className = 'duel-overlay';
-  ov.innerHTML = `
-    <div class="duel-box">
-      <h3>⚔️ Você foi desafiado!</h3>
-      <p><strong>${esc(invite.de_nome || 'Herói')}</strong> quer disputar uma batalha bíblica com você.</p>
-      <div class="duel-actions">
-        <button class="duel-btn-silver" id="duel-accept">Aceitar</button>
-        <button class="duel-btn-dark" id="duel-decline">Recusar</button>
-      </div>
-    </div>`;
-  document.body.appendChild(ov);
-  ov.querySelector('#duel-decline')?.addEventListener('click', async ()=>{
-    await supabase.from('desafios_duelo').update({status:'recusado',updated_at:new Date().toISOString()}).eq('id', invite.id);
-    ov.remove();
-  });
-  ov.querySelector('#duel-accept')?.addEventListener('click', async ()=>{
-    try {
-      const me = _me || await getMe();
-      const { data: meRow } = await supabase.from('users').select('name, photoURL, photourl, points').eq('uid', me.id).single();
-      if (Number(meRow?.points || 0) < 100) { toast('Você precisa de 100 pontos para aceitar.'); return; }
-      const { data: challenger } = await supabase.from('users').select('name, photoURL, photourl, points').eq('uid', invite.de_uid).single();
-      if (Number(challenger?.points || 0) < 100) { toast('O desafiante não tem mais 100 pontos.'); return; }
-      const duelo = await createDuel(
-        { uid: invite.de_uid, name: challenger?.name || invite.de_nome, foto: challenger?.photoURL || challenger?.photourl || invite.de_foto },
-        { uid: me.id, name: meRow?.name || 'Herói', foto: meRow?.photoURL || meRow?.photourl || avatar(meRow?.name || 'Herói') }
-      );
-      await supabase.from('desafios_duelo').update({status:'aceito', duelo_id: duelo.id, updated_at:new Date().toISOString()}).eq('id', invite.id);
-      ov.remove();
-      await carregarDuelo(duelo.id);
-    } catch (e) { console.error(e); toast('Não foi possível iniciar o duelo.'); }
-  });
+// ── PERGUNTAS USADAS ───────────────────────────────────────
+async function getUsedQuestionIds(uid) {
+  const { data, error } = await supabase
+    .from('duelo_perguntas_usadas')
+    .select('question_id')
+    .eq('uid', uid);
+
+  if (error) {
+    console.warn('[duel] getUsedQuestionIds erro:', error);
+    return [];
+  }
+
+  return (data || []).map(r => r.question_id);
 }
 
-export async function renderizarRankingComPresenca(eu){
-  injectStyles();
-  const container = document.getElementById('ranking-lista');
-  if (!container) return;
-  await ensureObservers();
-  const { data: usuarios } = await supabase.from('users').select('uid,name,points,photoURL,photourl,lastUpdate,lastupdate').order('points',{ascending:false}).limit(50);
-  if (!usuarios) return;
-  let html = `<div style="max-width:700px;margin:0 auto;">`;
-  usuarios.forEach((u, index) => {
-    const isMe = eu?.id === u.uid;
-    const foto = u.photoURL || u.photourl || avatar(u.name || 'Herói');
-    const titulo = calcNivel(Number(u.points || 0));
-    const nome = u.name ? (u.name.length > 12 ? u.name.substring(0,12)+'…' : u.name) : 'Herói';
-    const online = isOnline(u);
-    window.__duelRankingContextByUid[u.uid] = { uid:u.uid, nome:u.name || 'Herói', foto, points:Number(u.points || 0), online };
-    let rankConteudo = index + 1;
-    if (index === 0) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
-    else if (index === 1) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-prata"></div><div class="trofeu-icone">🥈</div></div>`;
-    else if (index === 2) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-bronze"></div><div class="trofeu-icone">🥉</div></div>`;
-    html += `
-      <div onclick="window.verPerfilDetalhado('${u.uid}')" style="display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:transform .2s;background:${index < 3 ? 'rgba(212,175,55,0.25)' : isMe ? 'rgba(212,175,55,0.15)' : 'rgba(0,0,0,0.4)'};border:1px solid ${index < 3 ? '#d4af37' : '#333'};border-radius:12px;backdrop-filter:blur(5px);" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-        <div style="width:45px;display:flex;justify-content:center;align-items:center;font-family:'Cinzel';font-weight:bold;color:#d4af37;">${rankConteudo}</div>
-        <div style="position:relative;flex-shrink:0;">
-          <img src="${foto}" style="width:48px;height:48px;border-radius:50%;border:2px solid #d4af37;object-fit:cover;display:block" onerror="this.src='${avatar(u.name || 'Herói')}'">
-          <div class="presence-dot ${online ? 'online' : 'offline'}"></div>
-        </div>
-        <div style="flex:1;text-align:left;">
-          <div style="color:white;font-weight:bold;">${esc(nome)} ${isMe ? '<span style="color:#d4af37;font-size:.75rem;">(você)</span>' : ''}</div>
-          <div class="nivel-chamas-ouro">${esc(titulo)}</div>
-          <div style="color:#d4af37;font-size:.8rem;font-weight:bold;margin-top:2px;">${Number(u.points || 0)} PTS</div>
-        </div>
-      </div>`;
-  });
-  container.innerHTML = html + '</div>';
+async function clearUsedQuestions(uid) {
+  const { error } = await supabase
+    .from('duelo_perguntas_usadas')
+    .delete()
+    .eq('uid', uid);
+
+  if (error) console.warn('[duel] clearUsedQuestions erro:', error);
 }
 
-function duelPlayers(duelo){
-  const meIsP1 = duelo.player1_uid === _me.id;
-  return {
-    meUid: _me.id,
-    oppUid: meIsP1 ? duelo.player2_uid : duelo.player1_uid,
-    meScore: meIsP1 ? Number(duelo.score1 || 0) : Number(duelo.score2 || 0),
-    oppScore: meIsP1 ? Number(duelo.score2 || 0) : Number(duelo.score1 || 0),
-    meSlot: meIsP1 ? 1 : 2,
-    oppSlot: meIsP1 ? 2 : 1,
+async function markUsedQuestions(uid, ids = []) {
+  if (!ids.length) return;
+  const rows = ids.map(question_id => ({ uid, question_id }));
+  const { error } = await supabase.from('duelo_perguntas_usadas').insert(rows);
+  if (error) console.warn('[duel] markUsedQuestions erro:', error);
+}
+
+async function pickQuestions(uid1, uid2, total = TOTAL_ROUNDS) {
+  let used1 = await getUsedQuestionIds(uid1);
+  let used2 = await getUsedQuestionIds(uid2);
+
+  let pool = QUESTION_BANK.filter(q => !used1.includes(q.id) && !used2.includes(q.id));
+
+  if (pool.length < total) {
+    if (QUESTION_BANK.filter(q => !used1.includes(q.id)).length < total) {
+      await clearUsedQuestions(uid1);
+      used1 = [];
+    }
+    if (QUESTION_BANK.filter(q => !used2.includes(q.id)).length < total) {
+      await clearUsedQuestions(uid2);
+      used2 = [];
+    }
+    pool = QUESTION_BANK.filter(q => !used1.includes(q.id) && !used2.includes(q.id));
+  }
+
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  const picked = shuffled.slice(0, total).map(normalizeQuestion);
+
+  await markUsedQuestions(uid1, picked.map(q => q.id));
+  await markUsedQuestions(uid2, picked.map(q => q.id));
+
+  return picked;
+}
+
+// ── DUELOS / CRUD ──────────────────────────────────────────
+async function createDuel(fromUser, toUser) {
+  const questions = await pickQuestions(fromUser.uid, toUser.uid, TOTAL_ROUNDS);
+
+  const payload = {
+    player1_uid: fromUser.uid,
+    player2_uid: toUser.uid,
+    status: 'ativa',
+    current_round: 1,
+    round_started_at: new Date().toISOString(),
+    questions,
+    score1: 0,
+    score2: 0,
+    winner_uid: null,
+    loser_uid: null,
+    ended_reason: null,
+    points_applied: false,
+    updated_at: new Date().toISOString()
   };
+
+  const { data, error } = await supabase
+    .from('duelos')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-async function getRoundAnswers(duelId, roundNumber){
-  const { data } = await supabase.from('duelo_respostas').select('*').eq('duelo_id', duelId).eq('round_number', roundNumber);
+async function fetchDuel(duelId) {
+  const { data, error } = await supabase
+    .from('duelos')
+    .select('*')
+    .eq('id', duelId)
+    .single();
+
+  if (error) throw error;
+  if (data) data.questions = normalizeQuestionList(data.questions);
+  return data;
+}
+
+async function submitAnswerRow(duelId, roundNumber, uid, answerIndex, correct) {
+  const payload = {
+    duelo_id: duelId,
+    round_number: roundNumber,
+    uid,
+    answer_index: answerIndex,
+    correct,
+    responded_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase.from('duelo_respostas').insert(payload);
+  if (error) throw error;
+}
+
+async function fetchRoundAnswers(duelId, roundNumber) {
+  const { data, error } = await supabase
+    .from('duelo_respostas')
+    .select('*')
+    .eq('duelo_id', duelId)
+    .eq('round_number', roundNumber);
+
+  if (error) throw error;
   return data || [];
 }
 
-function questionForRound(duelo, roundNumber){
-  const arr = Array.isArray(duelo.questions) ? duelo.questions : [];
-  return arr[roundNumber - 1] || null;
+async function hasAnswered(duelId, roundNumber, uid) {
+  const { data, error } = await supabase
+    .from('duelo_respostas')
+    .select('id')
+    .eq('duelo_id', duelId)
+    .eq('round_number', roundNumber)
+    .eq('uid', uid)
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
 }
 
-async function submitAnswer(duelo, answerIndex){
-  const info = duelPlayers(duelo);
-  const round = Number(duelo.current_round || 1);
-  const q = questionForRound(duelo, round);
-  if (!q) return;
-  const existing = await getRoundAnswers(duelo.id, round);
-  if (existing.some(r => r.uid === _me.id)) return;
-  const correct = Number(answerIndex) === Number(q.correta);
-  const { error } = await supabase.from('duelo_respostas').insert({
-    duelo_id: duelo.id,
-    round_number: round,
-    uid: _me.id,
-    answer_index: Number(answerIndex),
-    correct,
-    responded_at: new Date().toISOString(),
-  });
-  if (error) { console.error(error); toast('Não foi possível registrar sua resposta.'); return; }
-  await maybeAdvanceRound(duelo.id, round);
+async function safeAdvanceRound(duel, roundNumber, score1, score2, ended = false, endedReason = null, winnerUid = null, loserUid = null) {
+  const patch = {
+    score1,
+    score2,
+    updated_at: new Date().toISOString()
+  };
+
+  if (ended) {
+    patch.status = 'finalizada';
+    patch.ended_reason = endedReason;
+    patch.winner_uid = winnerUid;
+    patch.loser_uid = loserUid;
+  } else {
+    patch.current_round = roundNumber + 1;
+    patch.round_started_at = new Date().toISOString();
+  }
+
+  const { data, error } = await supabase
+    .from('duelos')
+    .update(patch)
+    .eq('id', duel.id)
+    .eq('current_round', roundNumber)
+    .select('*')
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  data.questions = normalizeQuestionList(data.questions);
+  return data;
 }
 
-async function maybeAdvanceRound(duelId, roundNumber){
-  const { data: duelo } = await supabase.from('duelos').select('*').eq('id', duelId).maybeSingle();
-  if (!duelo || duelo.status !== 'ativa' || Number(duelo.current_round) !== Number(roundNumber)) return;
-  const answers = await getRoundAnswers(duelId, roundNumber);
-  const deadline = new Date(duelo.round_started_at).getTime() + (ROUND_SECONDS * 1000);
-  const bothAnswered = answers.length >= 2;
-  const timeUp = Date.now() >= deadline;
-  if (!bothAnswered && !timeUp) return;
+async function finishByGiveUp(duel, quitterUid) {
+  const winnerUid = duel.player1_uid === quitterUid ? duel.player2_uid : duel.player1_uid;
+  const loserUid = quitterUid;
 
-  const p1Ans = answers.find(r => r.uid === duelo.player1_uid);
-  const p2Ans = answers.find(r => r.uid === duelo.player2_uid);
-  const add1 = p1Ans?.correct ? 1 : 0;
-  const add2 = p2Ans?.correct ? 1 : 0;
-  const newScore1 = Number(duelo.score1 || 0) + add1;
-  const newScore2 = Number(duelo.score2 || 0) + add2;
-  const now = new Date().toISOString();
+  const patch = {
+    status: 'finalizada',
+    winner_uid: winnerUid,
+    loser_uid: loserUid,
+    ended_reason: 'desistencia',
+    updated_at: new Date().toISOString()
+  };
 
-  if (roundNumber >= TOTAL_ROUNDS) {
-    let status = 'finalizada';
-    let winner = null;
-    let loser = null;
-    if (newScore1 > newScore2) { winner = duelo.player1_uid; loser = duelo.player2_uid; }
-    else if (newScore2 > newScore1) { winner = duelo.player2_uid; loser = duelo.player1_uid; }
-    const { data: updated } = await supabase.from('duelos').update({
-      score1: newScore1,
-      score2: newScore2,
-      status,
-      winner_uid: winner,
-      loser_uid: loser,
-      ended_reason: 'fim_normal',
-      updated_at: now,
-    }).eq('id', duelId).eq('status', 'ativa').eq('current_round', roundNumber).select('*').maybeSingle();
-    if (updated) await applyPointsIfNeeded(updated);
+  const { data, error } = await supabase
+    .from('duelos')
+    .update(patch)
+    .eq('id', duel.id)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+
+  data.questions = normalizeQuestionList(data.questions);
+  return data;
+}
+
+async function aplicarPontosDueloNoServidor(duelId) {
+  const { error } = await supabase.rpc('aplicar_pontos_duelo', { p_duelo_id: duelId });
+  if (error) {
+    console.warn('[duel] rpc aplicar_pontos_duelo erro:', error);
+  }
+}
+
+// ── RENDER CONVITE ─────────────────────────────────────────
+function renderInviteModal(invite) {
+  removeOverlay('.duel-overlay');
+  injectStyles();
+
+  const ov = document.createElement('div');
+  ov.className = 'duel-overlay';
+
+  const fromNome = invite.de_nome || 'Jogador';
+
+  const createdMs = new Date(invite.created_at || Date.now()).getTime();
+  const restanteMs = Math.max(0, INVITE_TTL_MS - (Date.now() - createdMs));
+
+  if (restanteMs <= 0) {
+    supabase
+      .from('desafios_duelo')
+      .update({ status: 'expirado', updated_at: new Date().toISOString() })
+      .eq('id', invite.id)
+      .eq('status', 'pendente')
+      .then(() => {})
+      .catch(() => {});
     return;
   }
 
-  await supabase.from('duelos').update({
-    score1: newScore1,
-    score2: newScore2,
-    current_round: roundNumber + 1,
-    round_started_at: now,
-    updated_at: now,
-  }).eq('id', duelId).eq('status', 'ativa').eq('current_round', roundNumber);
+  const expireTimer = setTimeout(async () => {
+    try {
+      await supabase
+        .from('desafios_duelo')
+        .update({ status: 'expirado', updated_at: new Date().toISOString() })
+        .eq('id', invite.id)
+        .eq('status', 'pendente');
+    } catch {}
+    ov.remove();
+  }, restanteMs);
+
+  ov.innerHTML = `
+    <div class="duel-box">
+      <h2>⚔️ DESAFIO RECEBIDO!</h2>
+      <p><strong>${esc(fromNome)}</strong> quer lutar!</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <button id="duel-accept-btn" class="duel-btn-silver">Aceitar</button>
+        <button id="duel-reject-btn" class="duel-btn-matte-red">Recusar</button>
+      </div>
+      <div id="duel-invite-status" style="margin-top:14px;text-align:center;color:#f4d15f;font-weight:700;"></div>
+    </div>
+  `;
+
+  document.body.appendChild(ov);
+
+  const btnAccept = ov.querySelector('#duel-accept-btn');
+  const btnReject = ov.querySelector('#duel-reject-btn');
+  const status = ov.querySelector('#duel-invite-status');
+
+  btnReject.onclick = async () => {
+    try {
+      btnAccept.disabled = true;
+      btnReject.disabled = true;
+      status.textContent = 'Recusando...';
+      await updateInvite(invite.id, { status: 'recusado' });
+      clearTimeout(expireTimer);
+      ov.remove();
+      toast('Convite recusado.', true);
+    } catch (e) {
+      console.error('[duel] reject invite erro:', e);
+      status.textContent = 'Erro ao recusar.';
+      btnAccept.disabled = false;
+      btnReject.disabled = false;
+    }
+  };
+
+  btnAccept.onclick = async () => {
+    if (_aceitando) return;
+    _aceitando = true;
+
+    try {
+      btnAccept.disabled = true;
+      btnReject.disabled = true;
+      btnAccept.textContent = 'Iniciando...';
+      status.textContent = 'Verificando convite...';
+
+      const currentInvite = await fetchInviteById(invite.id);
+      if (!currentInvite || currentInvite.status !== 'pendente') {
+        status.textContent = 'Esse convite já não está mais disponível.';
+        setTimeout(() => ov.remove(), 1200);
+        return;
+      }
+
+      const me = await getMe();
+      const meRow = await getUser(me.id);
+      const oppRow = await getUser(currentInvite.de_uid);
+
+      if (Number(meRow?.points || 0) < 100 || Number(oppRow?.points || 0) < 100) {
+        status.textContent = 'Um dos jogadores não tem 100 pontos.';
+        btnAccept.disabled = false;
+        btnReject.disabled = false;
+        btnAccept.textContent = 'Aceitar';
+        _aceitando = false;
+        return;
+      }
+
+      const fromUser = {
+        uid: currentInvite.de_uid,
+        nome: currentInvite.de_nome || oppRow?.name || 'Jogador',
+        foto: currentInvite.de_foto || oppRow?.photoURL || oppRow?.photourl || avatar(currentInvite.de_nome || oppRow?.name || 'J')
+      };
+
+      const toUser = {
+        uid: me.id,
+        nome: currentInvite.para_nome || meRow?.name || 'Jogador',
+        foto: currentInvite.para_foto || meRow?.photoURL || meRow?.photourl || avatar(currentInvite.para_nome || meRow?.name || 'J')
+      };
+
+      status.textContent = 'Criando batalha...';
+      const duel = await createDuel(fromUser, toUser);
+
+      await updateInvite(invite.id, {
+        status: 'aceito',
+        duelo_id: duel.id
+      });
+
+      clearTimeout(expireTimer);
+      _closedFinalDuels.delete(duel.id);
+      ov.remove();
+      await openDuelArena(duel.id);
+    } catch (e) {
+      console.error('[duel] accept invite erro:', e);
+      clearTimeout(expireTimer);
+      status.textContent = 'Erro ao iniciar.';
+      btnAccept.disabled = false;
+      btnReject.disabled = false;
+      btnAccept.textContent = 'Aceitar';
+    } finally {
+      _aceitando = false;
+    }
+  };
 }
 
-async function applyPointsIfNeeded(duelo){
-  if (duelo.points_applied) return;
-  const now = new Date().toISOString();
-  const { data: flag } = await supabase.from('duelos').update({ points_applied: true, updated_at: now }).eq('id', duelo.id).eq('points_applied', false).select('id').maybeSingle();
-  if (!flag) return;
+// ── ARENA ──────────────────────────────────────────────────
+async function renderArena(duel) {
+  injectStyles();
+  removeOverlay('.duel-arena');
+  cleanupTimer();
 
-  if (!duelo.winner_uid || !duelo.loser_uid) return; // empate
+  _duelStateCache = duel;
+  _currentDuelId = duel.id;
+  _closedFinalDuels.delete(duel.id);
 
-  const { data: rows } = await supabase.from('users').select('uid, points').in('uid', [duelo.winner_uid, duelo.loser_uid]);
-  const map = {};
-  (rows || []).forEach(r => map[r.uid] = Number(r.points || 0));
-  await supabase.from('users').update({ points: (map[duelo.winner_uid] || 0) + DUEL_WIN_POINTS, lastUpdate: now, lastupdate: now }).eq('uid', duelo.winner_uid);
-  await supabase.from('users').update({ points: Math.max(0, (map[duelo.loser_uid] || 0) - DUEL_WIN_POINTS), lastUpdate: now, lastupdate: now }).eq('uid', duelo.loser_uid);
-  window.dispatchEvent(new CustomEvent('pontos_atualizados', { detail: { uid: duelo.winner_uid } }));
-  window.dispatchEvent(new CustomEvent('pontos_atualizados', { detail: { uid: duelo.loser_uid } }));
-}
+  if (duel.status === 'finalizada') {
+    await renderFinal(duel);
+    return;
+  }
 
-async function forfeitCurrentDuel(){
-  if (!_duelStateCache || !_me?.id) return;
-  const duelo = _duelStateCache;
-  if (duelo.status !== 'ativa') return;
-  const opponentUid = duelo.player1_uid === _me.id ? duelo.player2_uid : duelo.player1_uid;
-  const now = new Date().toISOString();
-  const { data: updated } = await supabase.from('duelos').update({
-    status: 'desistida',
-    winner_uid: opponentUid,
-    loser_uid: _me.id,
-    ended_reason: 'desistencia',
-    updated_at: now,
-  }).eq('id', duelo.id).eq('status','ativa').select('*').maybeSingle();
-  if (updated) await applyPointsIfNeeded(updated);
-}
+  const me = await getMe();
+  const myUid = me.id;
+  const meAnswered = await hasAnswered(duel.id, duel.current_round, myUid).catch(() => false);
+  const opponentUid = getOpponentUid(duel, myUid);
+  const opponentUser = await getUser(opponentUid);
+  const score = duelScoreForMe(duel, myUid);
+  const questions = normalizeQuestionList(duel.questions);
+  const q = normalizeQuestion(questions[qIndex(duel.current_round)]);
 
-function clearArena(){
-  document.getElementById('duel-arena')?.remove();
-  if (_renderTimer) { clearInterval(_renderTimer); _renderTimer = null; }
-}
-
-async function renderArena(duelo){
-  clearArena();
-  const users = await getUsersMap([duelo.player1_uid, duelo.player2_uid]);
-  const info = duelPlayers(duelo);
-  const meUser = users[_me.id] || { name:'Você', points:0 };
-  const oppUser = users[info.oppUid] || { name:'Oponente', points:0 };
-  const q = questionForRound(duelo, Number(duelo.current_round || 1));
-  const answers = await getRoundAnswers(duelo.id, Number(duelo.current_round || 1));
-  const myAnswer = answers.find(a => a.uid === _me.id) || null;
-  const oppAnswer = answers.find(a => a.uid === info.oppUid) || null;
+  if (!q?.pergunta || !Array.isArray(q.opcoes) || !q.opcoes.length) {
+    console.error('[duel] pergunta inválida:', duel.current_round, q);
+    toast('Erro ao carregar a pergunta do duelo.', false);
+    return;
+  }
 
   const arena = document.createElement('div');
-  arena.id = 'duel-arena';
   arena.className = 'duel-arena';
-  const fotoOpp = oppUser.photoURL || oppUser.photourl || avatar(oppUser.name || 'Oponente');
-  const roundsLeft = Number(duelo.current_round || 1);
+
   arena.innerHTML = `
-    <div class="arena-head">
-      <div class="arena-topline">
-        <div class="arena-opponent">
-          <img src="${fotoOpp}" onerror="this.src='${avatar(oppUser.name || 'Oponente')}'">
-          <div>
-            <div>${esc(oppUser.name || 'Oponente')}</div>
-            <div class="arena-head-meta">${Number(oppUser.points || 0)} pts · Rodada ${roundsLeft}</div>
+    <div class="arena-wrap">
+      <div class="arena-head">
+        <div class="arena-topline">
+          <div class="arena-opponent">
+            <div style="position:relative;">
+              <img src="${esc(opponentUser?.photoURL || opponentUser?.photourl || avatar(opponentUser?.name || 'O'))}" alt="oponente">
+              <span class="presence-dot ${isOnline(opponentUser) ? 'online' : 'offline'}"></span>
+            </div>
+            <div>
+              <div>${esc(opponentUser?.name || 'Oponente')}</div>
+              <div style="font-size:.75rem;color:${isOnline(opponentUser) ? '#95efba' : '#b5b5b5'};">${isOnline(opponentUser) ? 'Online' : 'Offline'}</div>
+            </div>
+          </div>
+          <div class="arena-head-meta">Rodada ${duel.current_round}/${TOTAL_ROUNDS}</div>
+        </div>
+      </div>
+
+      <div class="arena-question">
+        <div class="q-label">PERGUNTA BÍBLICA</div>
+        <div class="q-text">${esc(q.pergunta)}</div>
+
+        <div id="arena-options" class="arena-grid">
+          ${q.opcoes.map((op, i) => `
+            <button class="arena-opt" data-index="${i}" ${meAnswered ? 'disabled' : ''}>${esc(op)}</button>
+          `).join('')}
+        </div>
+
+        <div class="arena-status-row">
+          <div class="arena-status-card">
+            ${meAnswered ? '✅ Você já respondeu' : '⌛ Aguardando sua resposta'}
+            <small>Seu status nesta rodada</small>
+          </div>
+          <div class="arena-status-card" id="opp-status-card">
+            ⌛ Aguardando adversário
+            <small>Status do oponente</small>
           </div>
         </div>
-        <div class="arena-head-meta">20s</div>
+
+        <div class="arena-timer" id="arena-timer"></div>
+
+        <div class="arena-score">
+          <div>
+            <div style="color:#aaa;font-size:.8rem;">Seus pontos</div>
+            <div class="n">${score.me}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:#aaa;font-size:.8rem;">Pontos do oponente</div>
+            <div class="n">${score.opp}</div>
+          </div>
+        </div>
+
+        <button id="arena-quit-btn" class="arena-quit">Desistir do duelo</button>
       </div>
     </div>
-    <div class="arena-wrap">
-      <div class="arena-score">
-        <div style="text-align:center"><div class="n">${info.meScore}</div><div style="color:#9f9f9f">Seus acertos</div></div>
-        <div style="color:#d4af37;font-family:'Cinzel';font-size:1.4rem">VS</div>
-        <div style="text-align:center"><div class="n">${info.oppScore}</div><div style="color:#9f9f9f">Acertos rival</div></div>
-      </div>
-      <div class="arena-question">
-        <div class="q-label">Pergunta bíblica</div>
-        <div class="q-text">${esc(q?.pergunta || 'Aguardando pergunta...')}</div>
-      </div>
-      <div class="arena-grid">
-        ${(q?.opcoes || []).map((opt, idx) => {
-          let cls = 'arena-opt';
-          if (myAnswer && Number(myAnswer.answer_index) === idx) cls += ' selected';
-          if (myAnswer) {
-            if (Number(q.correta) === idx) cls += ' correct';
-            else if (Number(myAnswer.answer_index) === idx && !myAnswer.correct) cls += ' wrong';
-          }
-          return `<button class="${cls}" data-idx="${idx}" ${myAnswer ? 'disabled' : ''}>${esc(opt)}</button>`;
-        }).join('')}
-      </div>
-      <div class="arena-status-row">
-        <div class="arena-status-card">${myAnswer ? (myAnswer.correct ? 'Acertou' : 'Errou') : 'Sua resposta pendente'}<small>${myAnswer ? 'Resposta travada' : 'Você ainda pode escolher'}</small></div>
-        <div class="arena-status-card">${oppAnswer ? 'Oponente respondeu' : 'Oponente ainda não respondeu'}<small>${oppAnswer ? 'Resposta registrada' : 'Aguardando rival'}</small></div>
-      </div>
-      <div class="arena-timer" id="arena-timer"></div>
-      <button class="arena-quit" id="arena-quit">Sair da partida</button>
-    </div>`;
+  `;
+
   document.body.appendChild(arena);
 
-  arena.querySelectorAll('.arena-opt').forEach(btn => {
-    btn.addEventListener('click', async ()=>{
-      if (myAnswer) return;
-      await submitAnswer(duelo, Number(btn.dataset.idx));
-      await carregarDuelo(duelo.id);
-    });
-  });
-  arena.querySelector('#arena-quit')?.addEventListener('click', async ()=>{
-    await forfeitCurrentDuel();
+  const startedAtMs = duel.round_started_at ? new Date(duel.round_started_at).getTime() : Date.now();
+  const deadlineMs = startedAtMs + ROUND_SECONDS * 1000;
+  const timerEl = arena.querySelector('#arena-timer');
+  const oppStatusCard = arena.querySelector('#opp-status-card');
+  const optionButtons = [...arena.querySelectorAll('.arena-opt')];
+
+  const answers = await fetchRoundAnswers(duel.id, duel.current_round).catch(() => []);
+  const oppAnswered = answers.some(a => a.uid === opponentUid);
+  if (oppAnswered) {
+    oppStatusCard.innerHTML = `✅ Adversário já respondeu<small>Status do oponente</small>`;
+  }
+
+  optionButtons.forEach(btn => {
+    btn.onclick = async () => {
+      if (_answerSubmitting || meAnswered) return;
+      _answerSubmitting = true;
+      const idx = Number(btn.dataset.index);
+
+      try {
+        optionButtons.forEach(b => b.disabled = true);
+        btn.classList.add('selected');
+        await submitAnswer(duel.id, duel.current_round, idx);
+      } catch (e) {
+        console.error('[duel] submitAnswer click erro:', e);
+        toast('Erro ao enviar resposta.', false);
+        optionButtons.forEach(b => b.disabled = false);
+        btn.classList.remove('selected');
+      } finally {
+        _answerSubmitting = false;
+      }
+    };
   });
 
-  const timerEl = arena.querySelector('#arena-timer');
+  arena.querySelector('#arena-quit-btn').onclick = async () => {
+    const ok = confirm('Deseja desistir deste duelo?');
+    if (!ok) return;
+
+    try {
+      const finalDuel = await finishByGiveUp(duel, myUid);
+      await renderFinal(finalDuel);
+    } catch (e) {
+      console.error('[duel] give up erro:', e);
+      toast('Erro ao desistir do duelo.', false);
+    }
+  };
+
   const tick = async () => {
-    const end = new Date(duelo.round_started_at).getTime() + (ROUND_SECONDS * 1000);
-    const remain = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-    if (timerEl) timerEl.textContent = `Tempo restante: ${remain}s`;
-    if (remain <= 0) {
-      clearInterval(_renderTimer); _renderTimer = null;
-      await maybeAdvanceRound(duelo.id, Number(duelo.current_round || 1));
-      await carregarDuelo(duelo.id);
-    } else {
-      const freshAnswers = await getRoundAnswers(duelo.id, Number(duelo.current_round || 1));
-      if (freshAnswers.length >= 2) {
-        clearInterval(_renderTimer); _renderTimer = null;
-        await maybeAdvanceRound(duelo.id, Number(duelo.current_round || 1));
-        await carregarDuelo(duelo.id);
+    const sec = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+    if (timerEl) timerEl.textContent = `Tempo: ${sec}s`;
+
+    if (sec <= 0) {
+      cleanupTimer();
+      try {
+        await advanceIfRoundFinished(duel.id, duel.current_round);
+      } catch (e) {
+        console.warn('[duel] advance on timer erro:', e);
       }
     }
   };
+
   tick();
-  _renderTimer = setInterval(tick, 1000);
+  _renderTimer = setInterval(tick, 250);
 }
 
-async function renderFinal(duelo){
-  clearArena();
-  document.getElementById('duel-final-overlay')?.remove();
-  const users = await getUsersMap([duelo.player1_uid, duelo.player2_uid]);
-  const p1 = users[duelo.player1_uid] || { name:'Jogador 1', points:0 };
-  const p2 = users[duelo.player2_uid] || { name:'Jogador 2', points:0 };
-  const winner = duelo.winner_uid ? users[duelo.winner_uid] : null;
-  const meIsWinner = duelo.winner_uid === _me.id;
+async function submitAnswer(duelId, roundNumber, answerIndex) {
+  const me = await getMe();
+  const duel = await fetchDuel(duelId);
 
-  const labelFor = (uid) => {
-    if (duelo.ended_reason === 'desistencia' && duelo.loser_uid === uid) return '<div class="desist-tag">Desistiu</div>';
-    if (duelo.winner_uid === uid) return '<div class="champion-tag">Campeão</div>';
-    if (duelo.loser_uid === uid) return '<div class="silver-tag">Não foi dessa vez</div>';
-    return '<div class="silver-tag">Empate</div>';
-  };
+  if (duel.status === 'finalizada') {
+    await renderFinal(duel);
+    return;
+  }
 
-  const ov = document.createElement('div');
-  ov.id = 'duel-final-overlay';
-  ov.className = 'duel-final';
-  const myWaiting = duelo.rematch_requested_by === _me.id && !duelo.rematch_accepted;
-  const otherRequested = duelo.rematch_requested_by && duelo.rematch_requested_by !== _me.id && !duelo.rematch_accepted;
+  const already = await hasAnswered(duelId, roundNumber, me.id);
+  if (already) return;
+
+  const q = normalizeQuestion(duel.questions[qIndex(roundNumber)]);
+  if (!q?.pergunta || !Array.isArray(q.opcoes) || typeof q.correta !== 'number') {
+    throw new Error('Pergunta inválida no duelo.');
+  }
+
+  const correct = Number(q.correta) === Number(answerIndex);
+  await submitAnswerRow(duelId, roundNumber, me.id, answerIndex, correct);
+  await advanceIfRoundFinished(duelId, roundNumber);
+}
+
+async function advanceIfRoundFinished(duelId, roundNumber) {
+  const lockKey = `${duelId}:${roundNumber}`;
+  if (_advancingLocks.has(lockKey)) return;
+  _advancingLocks.add(lockKey);
+
+  try {
+    const duel = await fetchDuel(duelId);
+    if (!duel) return;
+
+    if (duel.status === 'finalizada') {
+      await renderFinal(duel);
+      return;
+    }
+
+    if (Number(duel.current_round) !== Number(roundNumber)) return;
+
+    const answers = await fetchRoundAnswers(duelId, roundNumber);
+    const p1Ans = answers.find(a => a.uid === duel.player1_uid);
+    const p2Ans = answers.find(a => a.uid === duel.player2_uid);
+
+    const startedAtMs = duel.round_started_at ? new Date(duel.round_started_at).getTime() : Date.now();
+    const expired = Date.now() >= startedAtMs + ROUND_SECONDS * 1000;
+
+    if (!(expired || (p1Ans && p2Ans))) return;
+
+    const score1 = Number(duel.score1 || 0) + (p1Ans?.correct ? 10 : 0);
+    const score2 = Number(duel.score2 || 0) + (p2Ans?.correct ? 10 : 0);
+
+    if (Number(roundNumber) >= TOTAL_ROUNDS) {
+      let winnerUid = null;
+      let loserUid = null;
+
+      if (score1 > score2) {
+        winnerUid = duel.player1_uid;
+        loserUid = duel.player2_uid;
+      } else if (score2 > score1) {
+        winnerUid = duel.player2_uid;
+        loserUid = duel.player1_uid;
+      }
+
+      const updated = await safeAdvanceRound(
+        duel,
+        roundNumber,
+        score1,
+        score2,
+        true,
+        'normal',
+        winnerUid,
+        loserUid
+      );
+
+      if (!updated) return;
+
+      await aplicarPontosDueloNoServidor(updated.id);
+      await renderFinal(updated);
+      return;
+    }
+
+    const updated = await safeAdvanceRound(
+      duel,
+      roundNumber,
+      score1,
+      score2,
+      false
+    );
+
+    if (!updated) return;
+    await renderArena(updated);
+  } finally {
+    _advancingLocks.delete(lockKey);
+  }
+}
+
+// ── FINAL ──────────────────────────────────────────────────
+function labelForFinal(duel, uid) {
+  const winnerUid = duel.winner_uid || null;
+  const reason = duel.ended_reason || 'normal';
+
+  if (reason === 'desistencia' && duel.loser_uid === uid) {
+    return '<div class="desist-tag">Desistiu</div>';
+  }
+
+  if (!winnerUid) {
+    return '<div class="silver-tag">Empate ⚖️</div>';
+  }
+
+  if (winnerUid === uid) {
+    return '<div class="champion-tag">Campeão +100</div>';
+  }
+
+  return '<div class="silver-tag">-100 pontos</div>';
+}
+
+async function renderFinal(duel) {
+  injectStyles();
+  cleanupTimer();
+  removeOverlay('.duel-arena');
+
+  if (_closedFinalDuels.has(duel.id)) return;
+
+  _duelStateCache = duel;
+  _currentDuelId = duel.id;
+
+  const me = await getMe();
+  const p1 = await getUser(duel.player1_uid);
+  const p2 = await getUser(duel.player2_uid);
+  const winner = duel.winner_uid ? await getUser(duel.winner_uid) : null;
+
+  let ov = document.getElementById('duel-final-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'duel-final-overlay';
+    ov.className = 'duel-final';
+    document.body.appendChild(ov);
+  }
+
   ov.innerHTML = `
-    <div class="duel-box" style="width:min(94vw,520px)">
-      <h2>${winner ? '🏆 Resultado da partida' : '⚖️ Empate'}</h2>
-      <p>${winner ? `${esc(winner.name || 'Herói')} venceu a disputa.` : 'Ninguém venceu desta vez.'}</p>
+    <div class="duel-box">
+      <h2>${winner ? '🏁 DUELO ENCERRADO' : '⚖️ EMPATE!'}</h2>
+      <p>${winner ? `<strong>${esc(winner?.name || 'Herói')}</strong> venceu a disputa.` : 'Nenhum herói venceu desta vez.'}</p>
+
       <div class="final-grid">
         <div class="final-card">
-          <img src="${p1.photoURL || p1.photourl || avatar(p1.name || 'Jogador 1')}" onerror="this.src='${avatar(p1.name || 'Jogador 1')}'">
-          <div class="name">${esc(p1.name || 'Jogador 1')}</div>
-          <div class="score">${Number(duelo.score1 || 0)}</div>
-          ${labelFor(duelo.player1_uid)}
+          <img src="${esc(p1?.photoURL || p1?.photourl || avatar(p1?.name || 'P1'))}" alt="p1">
+          <div class="name">${esc(p1?.name || 'Jogador 1')}</div>
+          <div class="score">${Number(duel.score1 || 0)}</div>
+          ${labelForFinal(duel, duel.player1_uid)}
         </div>
+
         <div class="final-card">
-          <img src="${p2.photoURL || p2.photourl || avatar(p2.name || 'Jogador 2')}" onerror="this.src='${avatar(p2.name || 'Jogador 2')}'">
-          <div class="name">${esc(p2.name || 'Jogador 2')}</div>
-          <div class="score">${Number(duelo.score2 || 0)}</div>
-          ${labelFor(duelo.player2_uid)}
+          <img src="${esc(p2?.photoURL || p2?.photourl || avatar(p2?.name || 'P2'))}" alt="p2">
+          <div class="name">${esc(p2?.name || 'Jogador 2')}</div>
+          <div class="score">${Number(duel.score2 || 0)}</div>
+          ${labelForFinal(duel, duel.player2_uid)}
         </div>
       </div>
+
       <div class="final-buttons">
-        ${myWaiting ? '<button class="duel-btn-silver" disabled>Aguarde...</button>' : otherRequested ? '<button class="duel-btn-silver" id="duel-accept-rematch">Aceitar</button>' : '<button class="duel-btn-silver" id="duel-rematch-btn">Outra partida</button>'}
-        <button class="duel-btn-dark" id="duel-close-final">Fechar</button>
+        <button id="duel-close-final" class="duel-btn-dark">Fechar</button>
       </div>
-    </div>`;
-  document.body.appendChild(ov);
-  ov.querySelector('#duel-close-final')?.addEventListener('click', ()=> { ov.remove(); window.voltarParaBiblia?.(); });
-  ov.querySelector('#duel-rematch-btn')?.addEventListener('click', async ()=> {
-    await supabase.from('duelos').update({ rematch_requested_by: _me.id, updated_at: new Date().toISOString() }).eq('id', duelo.id);
+    </div>
+  `;
+
+  ov.querySelector('#duel-close-final')?.addEventListener('click', () => {
+    _closedFinalDuels.add(duel.id);
     ov.remove();
-    _finalOverlayOpen = false;
-    await carregarDuelo(duelo.id);
-  });
-  ov.querySelector('#duel-accept-rematch')?.addEventListener('click', async ()=> {
-    const me = _me || await getMe();
-    const { data: meRow } = await supabase.from('users').select('*').eq('uid', me.id).single();
-    const opponentUid = duelo.player1_uid === me.id ? duelo.player2_uid : duelo.player1_uid;
-    const { data: opRow } = await supabase.from('users').select('*').eq('uid', opponentUid).single();
-    if (Number(meRow?.points || 0) < 100 || Number(opRow?.points || 0) < 100) { toast('Um dos jogadores não tem 100 pontos para a revanche.'); return; }
-    const novo = await createDuel({uid:duelo.player1_uid,name:(users[duelo.player1_uid]?.name||'Jogador 1')},{uid:duelo.player2_uid,name:(users[duelo.player2_uid]?.name||'Jogador 2')});
-    await supabase.from('duelos').update({ rematch_accepted: true, updated_at: new Date().toISOString() }).eq('id', duelo.id);
-    ov.remove();
-    _finalOverlayOpen = false;
-    await carregarDuelo(novo.id);
+    _duelStateCache = duel;
+    _currentDuelId = duel.id;
+    window.voltarParaBiblia?.();
   });
 }
 
-window.addEventListener('beforeunload', ()=> { if (_duelStateCache?.status === 'ativa') { forfeitCurrentDuel(); } });
-document.addEventListener('visibilitychange', ()=> { if (document.hidden && _duelStateCache?.status === 'ativa') { forfeitCurrentDuel(); } });
+// ── OBSERVERS ──────────────────────────────────────────────
+async function openDuelArena(duelId) {
+  const duel = await fetchDuel(duelId);
+  _closedFinalDuels.delete(duelId);
+  await ensureObservers(duelId);
+  await renderArena(duel);
+}
 
-(async function bootDuel(){
-  injectStyles();
-  await ensureObservers();
-  supabase.auth.onAuthStateChange(async (_evt, session) => {
-    if (session?.user) await ensureObservers();
-    else teardownChannels();
+async function ensureObservers(duelId = null) {
+  _ensureMutex = _ensureMutex.then(async () => {
+    injectStyles();
+    const me = await getMe();
+    if (!me) return;
+
+    if (!_inviteChannel) {
+      _inviteChannel = supabase
+        .channel(`duel-invites-${me.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'desafios_duelo',
+          filter: `para_uid=eq.${me.id}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row || row.status !== 'pendente') return;
+          renderInviteModal(row);
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'desafios_duelo',
+          filter: `para_uid=eq.${me.id}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          if (row.status === 'pendente') renderInviteModal(row);
+          if (row.status === 'aceito' && row.duelo_id) {
+            _closedFinalDuels.delete(row.duelo_id);
+            removeOverlay('.duel-overlay');
+            await openDuelArena(row.duelo_id);
+          }
+          if (row.status === 'recusado') {
+            removeOverlay('.duel-overlay');
+          }
+        })
+        .subscribe();
+    }
+
+    if (!_inviteSentChannel) {
+      _inviteSentChannel = supabase
+        .channel(`duel-invites-sent-${me.id}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'desafios_duelo',
+          filter: `de_uid=eq.${me.id}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          if (row.status === 'aceito' && row.duelo_id) {
+            _closedFinalDuels.delete(row.duelo_id);
+            await openDuelArena(row.duelo_id);
+          }
+          if (row.status === 'recusado') {
+            toast('Seu convite de duelo foi recusado.', false);
+          }
+        })
+        .subscribe();
+    }
+
+    try {
+      await expirarConvitesAntigos(me.id);
+      const pendente = await buscarConvitePendenteRecente(me.id);
+      if (pendente && !document.querySelector('.duel-overlay') && !document.querySelector('.duel-arena')) {
+        renderInviteModal(pendente);
+      }
+    } catch (e) {
+      console.warn('[duel] checagem inicial de convites:', e);
+    }
+
+    if (_invitePollTimer) clearInterval(_invitePollTimer);
+    _invitePollTimer = setInterval(async () => {
+      try {
+        if (document.querySelector('.duel-overlay') || document.querySelector('.duel-arena')) return;
+        await expirarConvitesAntigos(me.id);
+        const pendente = await buscarConvitePendenteRecente(me.id);
+        if (pendente) renderInviteModal(pendente);
+      } catch (e) {
+        console.warn('[duel] poll convite:', e);
+      }
+    }, 3000);
+
+    if (duelId) {
+      cleanupRealtime('_duelChannel');
+      cleanupRealtime('_answersChannel');
+
+      _duelChannel = supabase
+        .channel(`duel-main-${duelId}-${Date.now()}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'duelos',
+          filter: `id=eq.${duelId}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          row.questions = normalizeQuestionList(row.questions);
+          _duelStateCache = row;
+          _currentDuelId = row.id;
+
+          if (row.status === 'finalizada') {
+            if (!_closedFinalDuels.has(row.id)) {
+              await renderFinal(row);
+            }
+          } else {
+            _closedFinalDuels.delete(row.id);
+            await renderArena(row);
+          }
+        })
+        .subscribe();
+
+      _answersChannel = supabase
+        .channel(`duel-answers-${duelId}-${Date.now()}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'duelo_respostas',
+          filter: `duelo_id=eq.${duelId}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          try {
+            const duel = await fetchDuel(duelId);
+            if (duel.status === 'finalizada') {
+              if (!_closedFinalDuels.has(duel.id)) {
+                await renderFinal(duel);
+              }
+            } else {
+              await renderArena(duel);
+              await advanceIfRoundFinished(duelId, row.round_number);
+            }
+          } catch (e) {
+            console.warn('[duel] answers observer erro:', e);
+          }
+        })
+        .subscribe();
+    }
+
+    if (!_presenceChannel) {
+      _presenceChannel = supabase
+        .channel(`duel-users-${Date.now()}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users'
+        }, payload => {
+          const row = payload.new;
+          if (!row?.uid) return;
+
+          const online = isOnline(row);
+
+          document.querySelectorAll(`[data-user-presence-uid="${row.uid}"]`).forEach(dot => {
+            dot.classList.remove('online', 'offline');
+            dot.classList.add(online ? 'online' : 'offline');
+          });
+
+          if (_duelStateCache) {
+            const oppUid = getOpponentUid(_duelStateCache, getMyUid());
+            if (oppUid === row.uid) {
+              document.querySelectorAll('.presence-dot').forEach(dot => {
+                dot.classList.remove('online', 'offline');
+                dot.classList.add(online ? 'online' : 'offline');
+              });
+            }
+          }
+
+          if (row.uid === getMyUid()) {
+            atualizarPontosNaTela(row);
+          }
+        })
+        .subscribe();
+    }
   });
+
+  return _ensureMutex;
+}
+
+// ── API PÚBLICA ────────────────────────────────────────────
+window.iniciarDesafioUsuario = async function(target) {
+  try {
+    await ensureObservers();
+
+    const me = _me || await getMe();
+    if (!me?.id) {
+      toast('Você precisa estar logado.', false);
+      return false;
+    }
+
+    if (!target?.uid) {
+      toast('Usuário inválido.', false);
+      return false;
+    }
+
+    if (target.uid === me.id) {
+      toast('Você não pode desafiar a si mesmo.', false);
+      return false;
+    }
+
+    const meDb = await getUser(me.id);
+    const meuPontos = Number(meDb?.points || 0);
+    if (meuPontos < 100) {
+      toast('Você precisa ter pelo menos 100 pontos para desafiar.', false);
+      return false;
+    }
+
+    const targetDb = await getUser(target.uid);
+    if (!isOnline(targetDb)) {
+      toast('Só é possível desafiar jogadores online.', false);
+      return false;
+    }
+
+    if (Number(targetDb?.points || 0) < 100) {
+      toast('Esse jogador precisa ter pelo menos 100 pontos.', false);
+      return false;
+    }
+
+    await limparConvitesPendentesEntre(me.id, target.uid);
+
+    const fromUser = {
+      uid: me.id,
+      nome: meDb?.name || 'Jogador',
+      foto: meDb?.photoURL || meDb?.photourl || avatar(meDb?.name || 'J')
+    };
+
+    const toUser = {
+      uid: target.uid,
+      nome: target.nome || targetDb?.name || 'Jogador',
+      foto: target.foto || targetDb?.photoURL || targetDb?.photourl || avatar(target.nome || targetDb?.name || 'J')
+    };
+
+    await insertInvite(fromUser, toUser);
+    toast('Convite de duelo enviado!', true);
+
+    setTimeout(async () => {
+      try {
+        await supabase
+          .from('desafios_duelo')
+          .update({ status: 'expirado', updated_at: new Date().toISOString() })
+          .eq('de_uid', me.id)
+          .eq('para_uid', target.uid)
+          .eq('status', 'pendente');
+      } catch (e) {
+        console.warn('[duel] erro ao expirar convite automaticamente:', e);
+      }
+    }, INVITE_TTL_MS);
+
+    return true;
+  } catch (e) {
+    console.error('[duel] iniciarDesafioUsuario erro:', e);
+    toast('Erro ao enviar convite de duelo.', false);
+    return false;
+  }
+};
+
+window.duelEnsureObservers = ensureObservers;
+window.ensureObservers = ensureObservers;
+
+export async function duelTeardown() {
+  duelTeardownInternal();
+}
+
+// ── SAÍDA DA ABA / JANELA ──────────────────────────────────
+window.addEventListener('beforeunload', async () => {
+  try {
+    if (!_currentDuelId || !_duelStateCache || _duelStateCache.status === 'finalizada') return;
+
+    const me = await getMe();
+    if (!me) return;
+
+    const row = _duelStateCache;
+    if (!row?.id) return;
+
+    const supabaseUrl = supabase?.supabaseUrl || supabase?.storageUrl?.replace('/storage/v1', '') || '';
+    const anonKey = supabase?.supabaseKey || supabase?.headers?.apikey || '';
+
+    const url = `${supabaseUrl}/rest/v1/duelos?id=eq.${row.id}`;
+    const body = JSON.stringify({
+      status: 'finalizada',
+      winner_uid: row.player1_uid === me.id ? row.player2_uid : row.player1_uid,
+      loser_uid: me.id,
+      ended_reason: 'desistencia',
+      updated_at: new Date().toISOString()
+    });
+
+    if (window.fetch && anonKey) {
+      fetch(url, {
+        method: 'PATCH',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Prefer': 'return=minimal'
+        },
+        body
+      }).catch(() => {});
+    } else if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+    }
+  } catch {}
+});
+
+// ── BOOT ────────────────────────────────────────────────────
+(async function bootDuel() {
+  try {
+    injectStyles();
+    await ensureObservers();
+  } catch (e) {
+    console.warn('[duel] boot erro:', e);
+  }
 })();

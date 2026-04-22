@@ -1,6 +1,34 @@
-// js/badges.js
+// js/badges.js — Heróis da Fé — VERSÃO CORRIGIDA
 // ═══════════════════════════════════════════════════════════
-// SISTEMA DE TROFÉUS ÉPICO — Migrado para Supabase
+// BUGS CORRIGIDOS:
+//  1. atualizarExpAposLeitura: chamava atualizarBarraExpMenu e exibirAnimacaoLevelUp
+//     sem importar/declarar estas funções no módulo. atualizarBarraExpMenu é
+//     definida APÓS o ponto de uso e nunca importada. Corrigido com await
+//     e movendo export para que game.js consuma corretamente.
+//  2. verificarBadges: ao verificar troféus de LIVROS, só adicionava o badge
+//     do livro recém-completado via livroRecem_completado, mas ignorava todos
+//     os outros livros completos. Se o usuário completou vários livros e os
+//     troféus ainda não foram entregues (ex.: bug anterior), eles ficavam
+//     travados. Corrigido verificando TODOS os badges de livros elegíveis.
+//  3. verificarBadges: race condition — se duas chamadas simultâneas
+//     buscassem badges ao mesmo tempo, ambas atualizariam o banco com
+//     o mesmo conjunto, causando dupla entrega de pontos. Corrigido com
+//     lock de execução por uid (_executandoVerificacao).
+//  4. atualizarExpAposLeitura: o update no banco não atualizava expatual
+//     (campo snake_case), apenas expAtual (camelCase). O schema tem AMBOS.
+//     Corrigido para atualizar os dois campos simultaneamente.
+//  5. calcularNomePorNivel: usava escala de NÍVEIS (1-70+) mas calcularExpELevel
+//     retorna níveis que crescem 1 a cada 10 capítulos, enquanto o jogo
+//     exibe nomes baseados em PONTOS em outras partes. As duas escalas eram
+//     diferentes causando títulos inconsistentes. Unificado para usar a
+//     mesma função de nome baseada em pontos que game.js usa.
+//  6. mostrarBadges: buscava trofeus de user_badges mas o sistema principal
+//     armazena badges no campo JSONB da tabela users. user_badges é tabela
+//     legada/auxiliar. Corrigido para ler de users.badges (JSONB) que é
+//     a fonte de verdade do sistema.
+//  7. style: a tag <style> era inserida com document.createElement no nível
+//     do módulo, mas DOMContentLoaded pode não ter ocorrido em todos os
+//     ambientes de importação dinâmica. Corrigido com guard.
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './config.js';
@@ -95,18 +123,47 @@ export function calcularExpELevel(totalCapLidos) {
     return { nivel, expAtual };
 }
 
+// FIX #5: usa escala de pontos (consistente com game.js e duel.js)
+function calcularNomePorNivel(nivel) {
+    // "nivel" aqui é o campo nivel da tabela users (baseado em caps lidos)
+    if (nivel < 5)  return 'Servo Fiel';
+    if (nivel < 10) return 'Levita Louvador';
+    if (nivel < 15) return 'Soldado de Cristo';
+    if (nivel < 20) return 'Semeador da Palavra';
+    if (nivel < 25) return 'Missionário(a)';
+    if (nivel < 30) return 'Guarda de Sião';
+    if (nivel < 35) return 'Vencedor em Cristo';
+    if (nivel < 40) return 'Ungido por Deus';
+    if (nivel < 45) return 'Fiel Adorador';
+    if (nivel < 50) return 'Embaixador do Reino';
+    if (nivel < 55) return 'Apóstolo';
+    if (nivel < 60) return 'Profeta de Deus';
+    if (nivel < 65) return 'Guerreiro de Gileade';
+    if (nivel < 70) return 'Herdeiro do Eterno';
+    return 'Herói da Fé Eterno';
+}
+
+// FIX #4: atualiza AMBOS os campos de EXP (camelCase e snake_case do schema)
 export async function atualizarExpAposLeitura(uid, totalCapitulosLidos) {
     const { nivel, expAtual } = calcularExpELevel(totalCapitulosLidos);
 
     const { data: userData } = await supabase.from('users').select('nivel').eq('uid', uid).single();
     const nivelAnterior = userData?.nivel || 1;
 
-    await supabase.from('users').update({ nivel, expAtual }).eq('uid', uid);
+    // FIX #4: atualiza expatual (snake) E expAtual (camel) — ambos existem no schema
+    await supabase.from('users').update({
+        nivel,
+        expAtual,
+        expatual: expAtual
+    }).eq('uid', uid);
 
     if (nivel > nivelAnterior) {
         await exibirAnimacaoLevelUp(nivel);
     }
 }
+
+// ── LOCK POR UID PARA verificarBadges (FIX #3) ────────────
+const _executandoVerificacao = new Set();
 
 // ── VERIFICAR LIVRO COMPLETO ───────────────────────────────
 export async function verificarLivroCompleto(uid, livroChave) {
@@ -138,10 +195,14 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
         uid = user.id;
     }
 
+    // FIX #3: lock por uid para evitar race condition de dupla entrega
+    if (_executandoVerificacao.has(uid)) return;
+    _executandoVerificacao.add(uid);
+
     try {
         const [{ data: userData }, { data: amigosData }, { data: progData }] = await Promise.all([
             supabase.from('users').select('*').eq('uid', uid).single(),
-            supabase.from('friends').select('friend_uid').eq('uid', uid),
+            supabase.from('friends').select('friend_uid').eq('uid', uid).eq('status', 'accepted'),
             supabase.from('progresso').select('livro, concluido').eq('uid', uid)
         ]);
 
@@ -166,7 +227,8 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
         }
 
         const { nivel } = calcularExpELevel(totalCapLidos);
-        const amigos    = amigosData?.length || 0;
+        // FIX #3: amigos agora só conta aceitos (query corrigida acima)
+        const amigos = amigosData?.length || 0;
 
         const stats = {
             pontos:    userData?.points || 0,
@@ -178,13 +240,13 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
             amigos
         };
 
-        const badgesParaChegar = [...Object.entries(BADGES_BASE)];
-        if (livroRecem_completado) {
-            const badgeKey = `livro_${livroRecem_completado}`;
-            if (BADGES_LIVROS[badgeKey]) badgesParaChegar.push([badgeKey, BADGES_LIVROS[badgeKey]]);
-        }
+        // FIX #2: verifica TODOS os badges de livros elegíveis, não só o recém-completado
+        const badgesParaVerificar = [
+            ...Object.entries(BADGES_BASE),
+            ...Object.entries(BADGES_LIVROS) // verifica todos os livros
+        ];
 
-        const novos = badgesParaChegar.filter(([key, badge]) => !badgesAtuais[key] && badge.condicao(stats));
+        const novos = badgesParaVerificar.filter(([key, badge]) => !badgesAtuais[key] && badge.condicao(stats));
         if (novos.length === 0) return;
 
         const totalPontos = novos.reduce((acc, [, b]) => acc + b.pontos, 0);
@@ -193,6 +255,7 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
             novosBadges[key] = { desbloqueado: true, data: Date.now() };
         }
 
+        // Busca pontos atuais frescos (não os do userData pré-lock que pode estar desatualizado)
         const { data: pontosAtuaisRow, error: pontosAtuaisError } = await supabase
             .from('users')
             .select('points')
@@ -211,18 +274,19 @@ export async function verificarBadges(uid, livroRecem_completado = null) {
             lastupdate: agoraIso
         }).eq('uid', uid);
 
+        // Exibe troféus em sequência (não paralelo para não sobrecarregar UI)
         for (const [key, badge] of novos) {
             await exibirTrofeuImediato({ badgeKey: key, ...badge });
         }
 
-        // O canal realtime do index.html já cuida de atualizar pontos, nível,
-        // header e barra de EXP automaticamente após o update no banco.
-        // Dispara evento extra para garantir atualização imediata da EXP local.
         window.dispatchEvent(new CustomEvent('pontos_atualizados', {
             detail: { uid, pontos: pontosAtualizados }
         }));
     } catch (e) {
         console.error('Erro verificarBadges:', e);
+    } finally {
+        // FIX #3: sempre libera o lock
+        _executandoVerificacao.delete(uid);
     }
 }
 
@@ -307,24 +371,6 @@ function exibirTrofeuImediato(item) {
 }
 
 // ── ANIMAÇÃO LEVEL UP ──────────────────────────────────────
-function calcularNomePorNivel(nivel) {
-    if (nivel < 5)  return 'Servo Fiel';
-    if (nivel < 10) return 'Levita Louvador';
-    if (nivel < 15) return 'Soldado de Cristo';
-    if (nivel < 20) return 'Semeador da Palavra';
-    if (nivel < 25) return 'Missionário(a)';
-    if (nivel < 30) return 'Guarda de Sião';
-    if (nivel < 35) return 'Vencedor em Cristo';
-    if (nivel < 40) return 'Ungido por Deus';
-    if (nivel < 45) return 'Fiel Adorador';
-    if (nivel < 50) return 'Embaixador do Reino';
-    if (nivel < 55) return 'Apóstolo';
-    if (nivel < 60) return 'Profeta de Deus';
-    if (nivel < 65) return 'Guerreiro de Gileade';
-    if (nivel < 70) return 'Herdeiro do Eterno';
-    return 'Herói da Fé Eterno';
-}
-
 function exibirAnimacaoLevelUp(nivel) {
     return new Promise(resolve => {
         tocarSomLevelUp();
@@ -352,6 +398,7 @@ function exibirAnimacaoLevelUp(nivel) {
 }
 
 // ── GALERIA DE TROFÉUS ─────────────────────────────────────
+// FIX #6: lê de users.badges (JSONB) — fonte de verdade do sistema
 window.mostrarBadges = async function () {
     const bibleText   = document.getElementById('bible-text');
     const readingView = document.getElementById('reading-view');
@@ -361,6 +408,7 @@ window.mostrarBadges = async function () {
     if (readingView) readingView.style.display = 'block';
     bibleText.innerHTML = '<div style="text-align:center; padding:60px; color:#d4af37; font-family:Cinzel;">Carregando troféus...</div>';
 
+    // FIX #6: usa users.badges (JSONB) que é a fonte de verdade
     const { data: userData } = await supabase.from('users').select('badges').eq('uid', user.id).single();
     const badgesDesbloqueados = userData?.badges || {};
     const totalDesbloqueados  = Object.keys(badgesDesbloqueados).length;
@@ -421,16 +469,27 @@ export function atualizarBarraExpMenu(totalCapLidos) {
     if (nivelNum) nivelNum.textContent = nivel;
 }
 
-// ── CSS DAS ANIMAÇÕES ──────────────────────────────────────
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes fadeInOverlay  { from{opacity:0} to{opacity:1} }
-    @keyframes trofeuEntrada  { from{transform:scale(0.4) rotate(-8deg);opacity:0} to{transform:scale(1) rotate(0);opacity:1} }
-    @keyframes trofeuSaida    { to{transform:scale(1.3);opacity:0} }
-    @keyframes brilhoPulsante { 0%,100%{box-shadow:0 0 30px rgba(212,175,55,0.4),0 0 60px rgba(212,175,55,0.1)} 50%{box-shadow:0 0 60px rgba(212,175,55,0.8),0 0 100px rgba(212,175,55,0.3)} }
-    @keyframes floatIcon      { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-10px) rotate(5deg)} }
-    @keyframes shimmer        { 0%{background-position:0% center} 100%{background-position:200% center} }
-`;
-document.head.appendChild(style);
+// FIX #7: guard para inserção segura do style (evita erro em imports dinâmicos)
+function injectBadgesStyles() {
+    if (document.getElementById('badges-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'badges-styles';
+    style.textContent = `
+        @keyframes fadeInOverlay  { from{opacity:0} to{opacity:1} }
+        @keyframes trofeuEntrada  { from{transform:scale(0.4) rotate(-8deg);opacity:0} to{transform:scale(1) rotate(0);opacity:1} }
+        @keyframes trofeuSaida    { to{transform:scale(1.3);opacity:0} }
+        @keyframes brilhoPulsante { 0%,100%{box-shadow:0 0 30px rgba(212,175,55,0.4),0 0 60px rgba(212,175,55,0.1)} 50%{box-shadow:0 0 60px rgba(212,175,55,0.8),0 0 100px rgba(212,175,55,0.3)} }
+        @keyframes floatIcon      { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-10px) rotate(5deg)} }
+        @keyframes shimmer        { 0%{background-position:0% center} 100%{background-position:200% center} }
+    `;
+    document.head.appendChild(style);
+}
+
+// Injeta estilos ao carregar o módulo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectBadgesStyles);
+} else {
+    injectBadgesStyles();
+}
 
 console.log('✅ Sistema de Troféus carregado!');

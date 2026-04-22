@@ -381,7 +381,7 @@
         limparSobreposicoesUI();
         mostrarJogo();
         await iniciarListenerUsuario(user);
-        iniciarSocial(user);
+        await iniciarSocial(user); // FIX-CRÍTICO: await obrigatório aqui
         iniciarMonitorChat(user);
         await atualizarMenuUsuario(user.id);
         try { await window.carregarListaLivros?.(); } catch (e) { console.error(e); }
@@ -441,9 +441,16 @@
       }
     }
 
+    // Sessão que chega DURANTE o bootstrap fica guardada e é processada logo após
+    let sessaoPendente = null;
+
     supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!bootstrapSessaoConcluido) return;
       const user = session?.user ?? null;
+      if (!bootstrapSessaoConcluido) {
+        // Guarda para processar após o bootstrap (evita race condition)
+        sessaoPendente = { user };
+        return;
+      }
       if (user) {
         await inicializarUsuario(user);
       } else {
@@ -458,6 +465,17 @@
       await destruirEstadoUsuario();
     }
     bootstrapSessaoConcluido = true;
+
+    // Processa sessão que chegou enquanto o bootstrap ainda corria
+    if (sessaoPendente !== null) {
+      const { user } = sessaoPendente;
+      sessaoPendente = null;
+      if (user) {
+        await inicializarUsuario(user);
+      } else {
+        await destruirEstadoUsuario();
+      }
+    }
 
     window.addEventListener('exp_atualizada', (e) => {
       const totalCaps = e.detail?.totalCaps;

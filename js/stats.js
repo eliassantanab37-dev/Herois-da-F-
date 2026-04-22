@@ -5,11 +5,17 @@ import { supabase } from './config.js';
 import { TOTAL_CAPS_LIVRO, LIVROS_SISTEMA, calcularExpELevel } from './badges.js';
 
 async function calcularEstatisticas(uid) {
-    const [{ data: userData }, { data: amigosData }, { data: progData }] = await Promise.all([
+    // FIX-S1: destructuring direto de Promise.all explodia com TypeError se alguma
+    // query retornasse erro (data seria undefined). Agora capturamos individualmente.
+    const [resUser, resAmigos, resProg] = await Promise.all([
         supabase.from('users').select('*').eq('uid', uid).single(),
         supabase.from('friends').select('friend_uid').eq('uid', uid),
         supabase.from('progresso').select('livro, concluido').eq('uid', uid)
     ]);
+    if (resUser.error) throw resUser.error;
+    const userData  = resUser.data;
+    const amigosData = resAmigos.data;
+    const progData   = resProg.data;
 
     const livros        = new Set();
     const livroDetalhes = {};

@@ -20,6 +20,13 @@ function openSidebar(){
 window.fecharSidebar = closeSidebar;
 window.abrirSidebar = openSidebar;
 
+// FIX-UI1: injeta estado inicial no histórico para que o handler de popstate
+// funcione corretamente na primeira vez que o usuário pressionar "Voltar".
+// Sem isso, no primeiro popstate o histórico fica vazio e sairArmed não dispara.
+if (!history.state?.page) {
+  history.replaceState({ page: 'jogo' }, '');
+}
+
 openBtn?.addEventListener('click', openSidebar);
 closeBtn?.addEventListener('click', closeSidebar);
 

@@ -217,7 +217,11 @@ btnRegistrar?.addEventListener('click', async () => {
       user = login.data.user;
     }
     await criarOuAtualizarPerfil(user, nome, email, dataNascimentoBanco);
-    window.location.reload();
+    // Não recarrega — se já há sessão ativa o onAuthStateChange dispara;
+    // caso contrário faz login manual e espera o evento
+    if (!authData.session) {
+      // login já foi feito acima; o evento onAuthStateChange vai cuidar da tela
+    }
   } catch (e) { toast(traduzirErro(e.message), false); } finally { btnRegistrar.disabled = false; }
 });
 
@@ -229,7 +233,7 @@ btnEntrar?.addEventListener('click', async () => {
   try {
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
     if (error) throw error;
-    window.location.reload();
+    // Não recarrega — onAuthStateChange dispara automaticamente e chama inicializarUsuario()
   } catch (e) { toast(traduzirErro(e.message), false); } finally { btnEntrar.disabled = false; }
 });
 
