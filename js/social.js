@@ -107,21 +107,43 @@ function idade(data) {
 }
 
 async function calcularEstatisticasPerfil(uid) {
-  const { data, error } = await comTimeout(
-    supabase
-      .from('user_stats')
-      .select('total_versos_lidos, total_livros_concluidos')
-      .eq('uid', uid)
-      .maybeSingle(),
-    8000
+  // Busca das tabelas fonte — user_stats pode estar desatualizada/zerada
+  const [resProgresso, resVersos] = await Promise.all([
+    comTimeout(
+      supabase.from('progresso').select('livro, concluido').eq('uid', uid),
+      8000
+    ),
+    comTimeout(
+      supabase.from('versos_lidos').select('id', { count: 'exact', head: true }).eq('uid', uid).eq('lido', true),
+      8000
+    ),
+  ]);
+
+  // Lança erro explícito se RLS ou outra falha bloquear a leitura
+  if (resProgresso.error) {
+    console.error('[calcularEstatisticasPerfil] erro em progresso:', resProgresso.error);
+    throw resProgresso.error;
+  }
+  if (resVersos.error) {
+    console.error('[calcularEstatisticasPerfil] erro em versos_lidos:', resVersos.error);
+    throw resVersos.error;
+  }
+
+  // Livros lidos = livros distintos com ao menos 1 capítulo concluído
+  const progRows = resProgresso.data || [];
+  const livrosComLeitura = new Set(
+    progRows.filter(r => r.concluido).map(r => r.livro).filter(Boolean)
   );
+  const livrosLidos = livrosComLeitura.size;
 
-  if (error) throw error;
+  // Versos lidos = contagem real da tabela versos_lidos
+  // Fallback: se versos_lidos estiver vazia, usa capítulos concluídos de progresso
+  const totalVersos = Number(resVersos.count || 0);
+  const versosLidos = totalVersos > 0
+    ? totalVersos
+    : progRows.filter(r => r.concluido).length;
 
-  return {
-    versosLidos: Number(data?.total_versos_lidos || 0),
-    livrosLidos: Number(data?.total_livros_concluidos || 0)
-  };
+  return { versosLidos, livrosLidos };
 }
 
 function escapeHtml(v) {
