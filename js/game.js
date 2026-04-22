@@ -142,14 +142,27 @@ style.innerHTML = `
 document.head.appendChild(style);
 
 // ── UTILITÁRIOS ────────────────────────────────────────────
-function gerarAvatarPadrao(nome) {
-    const iniciais = nome
-        ? nome.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
-        : '??';
+function gerarAvatarPadrao(nome = 'Herói') {
+    const nomeSeguro = String(nome || 'Herói').replace(/[\uD800-\uDFFF]/g, '');
+    const iniciais = nomeSeguro
+        .split(' ')
+        .map(p => p[0] || '')
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || '??';
+
     const cores = ['#d4af37', '#2ecc71', '#4a90e2', '#e74c3c', '#9b59b6', '#f39c12'];
-    const cor = cores[Math.abs((nome || '').charCodeAt(0) || 0) % cores.length];
-    const svg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="200" fill="${cor}"/><text x="100" y="100" font-size="80" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central" font-family="Arial">${iniciais}</text></svg>`;
-    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+    const cor = cores[Math.abs((nomeSeguro || '').charCodeAt(0) || 0) % cores.length];
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+        <rect width="200" height="200" fill="${cor}"/>
+        <text x="100" y="100" font-size="80" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central" font-family="Arial">${iniciais}</text>
+    </svg>`;
+
+    const bytes = new TextEncoder().encode(svg);
+    let binary = '';
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    return `data:image/svg+xml;base64,${btoa(binary)}`;
 }
 
 // FIX #4: escape de URL para uso em CSS url()
