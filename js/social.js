@@ -107,57 +107,20 @@ function idade(data) {
 }
 
 async function calcularEstatisticasPerfil(uid) {
-  const [statsResp, versosResp, progressoResp] = await Promise.all([
-    comTimeout(
-      supabase
-        .from('user_stats')
-        .select('total_versos_lidos, total_livros_concluidos')
-        .eq('uid', uid)
-        .maybeSingle(),
-      8000
-    ),
-    comTimeout(
-      supabase
-        .from('versos_lidos')
-        .select('id, livro')
-        .eq('uid', uid),
-      8000
-    ),
-    comTimeout(
-      supabase
-        .from('progresso')
-        .select('livro, concluido')
-        .eq('uid', uid),
-      8000
-    ),
-  ]);
+  const { data, error } = await comTimeout(
+    supabase
+      .from('user_stats')
+      .select('total_versos_lidos, total_livros_concluidos')
+      .eq('uid', uid)
+      .maybeSingle(),
+    8000
+  );
 
-  if (statsResp.error) throw statsResp.error;
-  if (versosResp.error) throw versosResp.error;
-  if (progressoResp.error) throw progressoResp.error;
-
-  const stats = statsResp.data || null;
-  const versos = versosResp.data || [];
-  const progresso = progressoResp.data || [];
-
-  const versosLidosStats = Number(stats?.total_versos_lidos || 0);
-  const livrosLidosStats = Number(stats?.total_livros_concluidos || 0);
-
-  const versosLidosRaw = versos.length;
-  const livrosViaVersos = new Set(
-    versos.map(v => v.livro).filter(Boolean)
-  ).size;
-
-  const livrosViaProgresso = new Set(
-    progresso
-      .filter(r => r.concluido)
-      .map(r => r.livro)
-      .filter(Boolean)
-  ).size;
+  if (error) throw error;
 
   return {
-    versosLidos: Math.max(versosLidosStats, versosLidosRaw),
-    livrosLidos: Math.max(livrosLidosStats, livrosViaVersos, livrosViaProgresso)
+    versosLidos: Number(data?.total_versos_lidos || 0),
+    livrosLidos: Number(data?.total_livros_concluidos || 0)
   };
 }
 
