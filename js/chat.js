@@ -8,6 +8,13 @@ let chatAbertoCom = null;
 let chatLoadToken = 0;
 let chatOutsideClickHandler = null;
 
+// ── ÁUDIO ──────────────────────────────────────────────────
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingTimer = null;
+let recordingSeconds = 0;
+const BUCKET_AUDIOS = 'chat-audios'; // nome do bucket no Supabase Storage
+
 const EMOJIS_CHAT = [
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊',
   '😋','😎','😍','🥰','😘','😗','😙','😚','☺️','🙂',
@@ -142,6 +149,240 @@ async function marcarLidas(meuId, amigoId) {
     .eq('lida', false);
 }
 
+// ── UTILITÁRIOS DE ÁUDIO ───────────────────────────────────
+function formatarSegundos(s) {
+  const m = Math.floor(s / 60);
+  const seg = Math.floor(s % 60);
+  return `${m}:${String(seg).padStart(2, '0')}`;
+}
+
+function atualizarBotaoAudio(btn, gravando, segundos = 0) {
+  if (gravando) {
+    btn.classList.add('gravando');
+    btn.title = `Gravando... ${formatarSegundos(segundos)} (solte para enviar)`;
+    btn.innerHTML = `<span style="color:#e74c3c;font-size:0.75rem;font-weight:bold;">⏺ ${formatarSegundos(segundos)}</span>`;
+  } else {
+    btn.classList.remove('gravando');
+    btn.title = 'Segure para gravar áudio';
+    btn.innerHTML = '🎙️';
+  }
+}
+
+function pararTimer() {
+  if (recordingTimer) {
+    clearInterval(recordingTimer);
+    recordingTimer = null;
+  }
+  recordingSeconds = 0;
+}
+
+async function uploadAudio(blob, meuId) {
+  const nomeArquivo = `${meuId}/${Date.now()}.webm`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET_AUDIOS)
+    .upload(nomeArquivo, blob, {
+      contentType: 'audio/webm',
+      upsert: false,
+    });
+
+  if (error) {
+    console.error('[chat] erro ao fazer upload do áudio:', error);
+    throw error;
+  }
+
+  const { data: urlData } = supabase.storage
+    .from(BUCKET_AUDIOS)
+    .getPublicUrl(nomeArquivo);
+
+  return urlData.publicUrl;
+}
+
+async function enviarMensagemAudio(blob, duracao, meuId, amigoId) {
+  try {
+    const url = await uploadAudio(blob, meuId);
+    const agora = new Date().toISOString();
+
+    const { error: msgError } = await supabase.from('mensagens').insert({
+      de: meuId,
+      para: amigoId,
+      mensagem: '🎙️ Mensagem de voz',
+      tipo: 'audio',
+      audio_url: url,
+      audio_duracao: Math.round(duracao),
+      lida: false,
+      createdat: agora,
+    });
+
+    if (msgError) {
+      console.error('[chat] erro ao salvar mensagem de áudio:', msgError);
+      return;
+    }
+
+    await supabase.from('notificacoes').insert({
+      to_uid: amigoId,
+      from_uid: meuId,
+      tipo: 'mensagem',
+      mensagem: '🎙️ Mensagem de voz',
+      lida: false,
+      created_at: agora,
+    });
+
+    await carregarMensagens(meuId, amigoId);
+  } catch (e) {
+    console.error('[chat] erro ao enviar áudio:', e);
+    alert('Não foi possível enviar o áudio. Verifique sua conexão e tente novamente.');
+  }
+}
+
+function configurarGravacaoAudio(win, meuId, amigoId) {
+  const btn = win.querySelector('#chat-audio-btn');
+  if (!btn) return;
+
+  let iniciouGravacao = false;
+  let startTime = 0;
+
+  async function iniciarGravacao() {
+    if (iniciouGravacao) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+
+      // Tenta webm, cai para ogg se não suportado
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const duracao = (Date.now() - startTime) / 1000;
+
+        // Ignora toque acidental (menos de 0.5s)
+        if (duracao < 0.5 || audioChunks.length === 0) {
+          pararTimer();
+          atualizarBotaoAudio(btn, false);
+          return;
+        }
+
+        const blob = new Blob(audioChunks, { type: mimeType });
+        pararTimer();
+        atualizarBotaoAudio(btn, false);
+        btn.disabled = true;
+        btn.innerHTML = '⏳';
+
+        await enviarMensagemAudio(blob, duracao, meuId, amigoId);
+
+        btn.disabled = false;
+        atualizarBotaoAudio(btn, false);
+      };
+
+      mediaRecorder.start();
+      startTime = Date.now();
+      iniciouGravacao = true;
+
+      recordingSeconds = 0;
+      atualizarBotaoAudio(btn, true, 0);
+
+      recordingTimer = setInterval(() => {
+        recordingSeconds++;
+        atualizarBotaoAudio(btn, true, recordingSeconds);
+        // Limite de 2 minutos
+        if (recordingSeconds >= 120) pararGravacao();
+      }, 1000);
+
+    } catch (e) {
+      console.error('[chat] erro ao acessar microfone:', e);
+      alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
+    }
+  }
+
+  function pararGravacao() {
+    if (!iniciouGravacao) return;
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+    iniciouGravacao = false;
+  }
+
+  // Mobile (touch)
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); iniciarGravacao(); }, { passive: false });
+  btn.addEventListener('touchend',   (e) => { e.preventDefault(); pararGravacao(); },   { passive: false });
+  btn.addEventListener('touchcancel',(e) => { e.preventDefault(); pararGravacao(); },   { passive: false });
+
+  // Desktop (mouse)
+  btn.addEventListener('mousedown',  (e) => { e.preventDefault(); iniciarGravacao(); });
+  btn.addEventListener('mouseup',    ()  => pararGravacao());
+  btn.addEventListener('mouseleave', ()  => pararGravacao());
+}
+
+// ── RENDERIZAR MENSAGEM INDIVIDUAL ─────────────────────────
+function renderMensagem(m, meuId) {
+  const mine = m.de === meuId;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + (mine ? 'mine' : 'other');
+
+  let conteudo = '';
+
+  if (m.tipo === 'audio' && m.audio_url) {
+    conteudo = `
+      <div class="msg-audio-player">
+        <button class="msg-audio-play-btn" data-url="${escapeHtml(m.audio_url)}" title="Reproduzir áudio">▶</button>
+        <div class="msg-audio-bar">
+          <div class="msg-audio-progress"></div>
+        </div>
+        <span class="msg-audio-dur">${m.audio_duracao ? formatarSegundos(m.audio_duracao) : '🎙️'}</span>
+      </div>
+    `;
+  } else {
+    conteudo = `<div class="msg-bubble">${escapeHtml(m.mensagem || '').replace(/\n/g, '<br>')}</div>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="msg-bubble-wrap">
+      ${conteudo}
+      <div class="msg-meta">
+        ${mine ? `<span class="msg-state">${m.lida ? '✓✓ lido' : '✓ enviado'}</span>` : ''}
+      </div>
+    </div>
+  `;
+
+  // Player de áudio interativo
+  const playBtn = wrap.querySelector('.msg-audio-play-btn');
+  if (playBtn) {
+    let audio = null;
+    let tocando = false;
+    playBtn.addEventListener('click', () => {
+      if (!audio) {
+        audio = new Audio(playBtn.dataset.url);
+        const bar = wrap.querySelector('.msg-audio-progress');
+        audio.addEventListener('timeupdate', () => {
+          if (!bar || !audio.duration) return;
+          bar.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+        });
+        audio.addEventListener('ended', () => {
+          tocando = false;
+          playBtn.textContent = '▶';
+          if (bar) bar.style.width = '0%';
+        });
+      }
+      if (tocando) {
+        audio.pause();
+        tocando = false;
+        playBtn.textContent = '▶';
+      } else {
+        audio.play();
+        tocando = true;
+        playBtn.textContent = '⏸';
+      }
+    });
+  }
+
+  return wrap;
+}
+
 async function carregarMensagens(meuId, amigoId) {
   const token = ++chatLoadToken;
   const box = getChatMessagesBox();
@@ -175,24 +416,7 @@ async function carregarMensagens(meuId, amigoId) {
   }
 
   box.innerHTML = '';
-
-  data.forEach((m) => {
-    const mine = m.de === meuId;
-    const wrap = document.createElement('div');
-    wrap.className = 'msg-wrap ' + (mine ? 'mine' : 'other');
-
-    wrap.innerHTML = `
-      <div class="msg-bubble-wrap">
-        <div class="msg-bubble">${escapeHtml(m.mensagem || '').replace(/\n/g, '<br>')}</div>
-        <div class="msg-meta">
-          ${mine ? `<span class="msg-state">${m.lida ? '✓✓ lido' : '✓ enviado'}</span>` : ''}
-        </div>
-      </div>
-    `;
-
-    box.appendChild(wrap);
-  });
-
+  data.forEach((m) => box.appendChild(renderMensagem(m, meuId)));
   scrollChatParaBaixo();
   await marcarLidas(meuId, amigoId);
 }
@@ -232,20 +456,13 @@ function autoResizeTextarea(textarea) {
   textarea.style.height = Math.min(Math.max(textarea.scrollHeight, min), max) + 'px';
 }
 
+// ── ABRIR CHAT ─────────────────────────────────────────────
 window.abrirChat = async function (amigoId, nome = '') {
   document.getElementById('perfil-detalhado')?.remove();
   document.getElementById('janela-chat')?.remove();
 
-  if (roomChannel) {
-    supabase.removeChannel(roomChannel);
-    roomChannel = null;
-  }
-
-  if (userStatusChannel) {
-    supabase.removeChannel(userStatusChannel);
-    userStatusChannel = null;
-  }
-
+  if (roomChannel) { supabase.removeChannel(roomChannel); roomChannel = null; }
+  if (userStatusChannel) { supabase.removeChannel(userStatusChannel); userStatusChannel = null; }
   limparCliqueFora();
 
   const me = await getMe();
@@ -287,6 +504,7 @@ window.abrirChat = async function (amigoId, nome = '') {
         <div class="chat-input-wrap">
           <textarea id="chat-input" rows="4" placeholder="Digite sua mensagem" autocomplete="off"></textarea>
         </div>
+        <button id="chat-audio-btn" class="chat-audio-btn" type="button" title="Segure para gravar áudio">🎙️</button>
         <button id="chat-send" class="chat-send" type="button" aria-label="Enviar">
           <span class="chat-send-icon">➤</span>
         </button>
@@ -298,18 +516,17 @@ window.abrirChat = async function (amigoId, nome = '') {
 
   montarPainelEmoji(win);
   configurarCliqueFora(win);
+  configurarGravacaoAudio(win, me.id, amigoId);
 
   const input = win.querySelector('#chat-input');
   autoResizeTextarea(input);
   input?.addEventListener('input', () => autoResizeTextarea(input));
 
   win.querySelector('.chat-back')?.addEventListener('click', () => window.fecharChatAtivo());
-
   win.querySelector('#chat-emoji-toggle')?.addEventListener('click', (e) => {
     e.stopPropagation();
     alternarPainelEmoji(win);
   });
-
   win.querySelector('#chat-messages')?.addEventListener('click', () => fecharPainelEmoji(win));
 
   await carregarMensagens(me.id, amigoId);
@@ -332,7 +549,7 @@ window.abrirChat = async function (amigoId, nome = '') {
       para: amigoId,
       mensagem: texto,
       lida: false,
-      createdat: agora
+      createdat: agora,
     });
 
     if (msgError) {
@@ -347,135 +564,90 @@ window.abrirChat = async function (amigoId, nome = '') {
       tipo: 'mensagem',
       mensagem: texto.slice(0, 120),
       lida: false,
-      created_at: agora
+      created_at: agora,
     });
 
-    if (notifError) {
-      console.warn('[chat] erro ao criar notificação:', notifError);
-    }
+    if (notifError) console.warn('[chat] erro ao criar notificação:', notifError);
 
     await carregarMensagens(me.id, amigoId);
     if (sendBtn) sendBtn.disabled = false;
   }
 
   win.querySelector('#chat-send')?.addEventListener('click', enviar);
-
   input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      enviar();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); }
   });
 
   roomChannel = supabase
     .channel('room-' + [me.id, amigoId].sort().join('-'))
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'mensagens' },
-      async (payload) => {
-        const r = payload.new || payload.old;
-        if (!r) return;
-
-        const ok =
-          (r.de === me.id && r.para === amigoId) ||
-          (r.de === amigoId && r.para === me.id);
-
-        if (!ok) return;
-        if (!chatEstaAbertoCom(amigoId)) return;
-
-        await carregarMensagens(me.id, amigoId);
-      }
-    )
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, async (payload) => {
+      const r = payload.new || payload.old;
+      if (!r) return;
+      const ok = (r.de === me.id && r.para === amigoId) || (r.de === amigoId && r.para === me.id);
+      if (!ok || !chatEstaAbertoCom(amigoId)) return;
+      await carregarMensagens(me.id, amigoId);
+    })
     .subscribe();
 
   userStatusChannel = supabase
     .channel('chat-user-' + amigoId)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'users',
-        filter: `uid=eq.${amigoId}`
-      },
-      (payload) => {
-        const el = document.getElementById('chat-status');
-        if (!el) return;
-        el.textContent = online(payload.new) ? 'Online' : 'Offline';
-        el.classList.remove('online', 'offline');
-        el.classList.add(online(payload.new) ? 'online' : 'offline');
-      }
-    )
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `uid=eq.${amigoId}` }, (payload) => {
+      const el = document.getElementById('chat-status');
+      if (!el) return;
+      el.textContent = online(payload.new) ? 'Online' : 'Offline';
+      el.classList.remove('online', 'offline');
+      el.classList.add(online(payload.new) ? 'online' : 'offline');
+    })
     .subscribe();
 };
 
 window.fecharChatAtivo = function () {
+  // Para gravação se estiver ativa ao fechar
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  pararTimer();
+
   document.getElementById('janela-chat')?.remove();
   chatAbertoCom = null;
   chatLoadToken++;
   limparCliqueFora();
 
-  if (roomChannel) {
-    supabase.removeChannel(roomChannel);
-    roomChannel = null;
-  }
-
-  if (userStatusChannel) {
-    supabase.removeChannel(userStatusChannel);
-    userStatusChannel = null;
-  }
+  if (roomChannel) { supabase.removeChannel(roomChannel); roomChannel = null; }
+  if (userStatusChannel) { supabase.removeChannel(userStatusChannel); userStatusChannel = null; }
 };
 
 export function iniciarMonitorChat(user) {
-  if (monitor) {
-    supabase.removeChannel(monitor);
-    monitor = null;
-  }
-
+  if (monitor) { supabase.removeChannel(monitor); monitor = null; }
   if (!user) return;
 
   monitor = supabase
     .channel('monitor-notif-' + user.id)
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notificacoes',
-        filter: `to_uid=eq.${user.id}`
-      },
-      async (payload) => {
-        const n = payload.new;
-        if (!n || n.lida) return;
-        if ((n.tipo || '') !== 'mensagem') return;
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificacoes', filter: `to_uid=eq.${user.id}` }, async (payload) => {
+      const n = payload.new;
+      if (!n || n.lida) return;
+      if ((n.tipo || '') !== 'mensagem') return;
 
-        const from = await getUser(n.from_uid);
-        const nomeFrom = from?.name || 'Amigo';
+      const from = await getUser(n.from_uid);
+      const nomeFrom = from?.name || 'Amigo';
 
-        if (chatEstaAbertoCom(n.from_uid)) {
-          await carregarMensagens(user.id, n.from_uid);
-          removerToastsDoContato(n.from_uid);
-          return;
-        }
-
+      if (chatEstaAbertoCom(n.from_uid)) {
+        await carregarMensagens(user.id, n.from_uid);
         removerToastsDoContato(n.from_uid);
-
-        const box = document.createElement('div');
-        box.className = 'msg-toast';
-        box.dataset.fromUid = n.from_uid;
-        box.innerHTML = `
-          <div class="msg-toast-title">✉ Msg</div>
-          <div class="msg-toast-body">${escapeHtml(nomeFrom)}: ${escapeHtml(n.mensagem || '')}</div>
-        `;
-
-        box.addEventListener('click', () => {
-          box.remove();
-          window.abrirChat(n.from_uid, nomeFrom);
-        });
-
-        document.body.appendChild(box);
-        setTimeout(() => box.remove(), 8000);
+        return;
       }
-    )
+
+      removerToastsDoContato(n.from_uid);
+
+      const box = document.createElement('div');
+      box.className = 'msg-toast';
+      box.dataset.fromUid = n.from_uid;
+      box.innerHTML = `
+        <div class="msg-toast-title">✉ Msg</div>
+        <div class="msg-toast-body">${escapeHtml(nomeFrom)}: ${escapeHtml(n.mensagem || '')}</div>
+      `;
+
+      box.addEventListener('click', () => { box.remove(); window.abrirChat(n.from_uid, nomeFrom); });
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 8000);
+    })
     .subscribe();
 }
