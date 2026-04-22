@@ -106,6 +106,40 @@ function idade(data) {
   return anos;
 }
 
+async function calcularEstatisticasPerfil(uid) {
+  const [versosResp, progressoResp] = await Promise.all([
+    comTimeout(supabase.from('versos_lidos').select('id, livro').eq('uid', uid), 8000),
+    comTimeout(supabase.from('progresso').select('livro, concluido').eq('uid', uid), 8000),
+  ]);
+
+  if (versosResp.error) throw versosResp.error;
+  if (progressoResp.error) throw progressoResp.error;
+
+  const versos = versosResp.data || [];
+  const progresso = progressoResp.data || [];
+
+  let versosLidos = versos.length;
+  const livrosViaVersos = new Set(versos.map(v => v.livro).filter(Boolean));
+
+  const livrosViaProgresso = new Set(
+    progresso
+      .filter(r => r.concluido)
+      .map(r => r.livro)
+      .filter(Boolean)
+  );
+
+  if (versosLidos === 0) {
+    versosLidos = progresso.filter(r => r.concluido).length;
+  }
+
+  const livrosLidos = Math.max(livrosViaVersos.size, livrosViaProgresso.size);
+
+  return {
+    versosLidos,
+    livrosLidos
+  };
+}
+
 function escapeHtml(v) {
   return String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
@@ -208,8 +242,8 @@ export async function iniciarSocial(user) {
   initBusca(user.id);
   bindProfileButtons(user.id);
   heartbeat(user.id);
-  heartbeatTimer = setInterval(() => heartbeat(user.id), 20000); // FIX-PRESENCE: reduzido de 30s para 20s
-  _sidebarRefreshTimer = setInterval(() => recarregarSidebar(user.id), 15000); // FIX-PRESENCE: reduzido de 25s para 15s
+  heartbeatTimer = setInterval(() => heartbeat(user.id), 20000);
+  _sidebarRefreshTimer = setInterval(() => recarregarSidebar(user.id), 15000);
 
   const currentUid = user.id;
   if (!_presenceHandlersBound) {
@@ -237,8 +271,6 @@ export async function iniciarSocial(user) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notificacoes', filter: `to_uid=eq.${currentUid}` }, () => recarregarSidebar(currentUid))
     .subscribe();
 
-  // FIX-PRESENCE: canal de presença em tempo real — atualiza dots da sidebar
-  // sem precisar de F5 ou esperar o timer de 15s
   supabase.channel(`social-presence-dots-${currentUid}`)
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'users' },
@@ -247,11 +279,9 @@ export async function iniciarSocial(user) {
         if (!uid) return;
         const t = payload.new?.lastUpdate || payload.new?.lastupdate;
         const online = t && (Date.now() - new Date(t).getTime()) < 90000;
-        // Atualiza dot na sidebar sem re-renderizar a lista
         document.querySelectorAll(`[data-friend-presence-uid="${uid}"]`).forEach(el => {
           el.className = `status-ball ${online ? 'status-online' : 'status-offline'}`;
         });
-        // Atualiza texto Online/Offline na meta linha
         document.querySelectorAll(`[data-friend-presence-uid="${uid}"]`).forEach(el => {
           const row = el.closest('.friend-row');
           if (!row) return;
@@ -457,16 +487,13 @@ function initBusca(meuUid) {
 
 // ── PERFIL ─────────────────────────────────────────────────
 async function dadosPerfil(uid, viewerId) {
-  // FIX: wrap com timeout para garantir que nunca trava indefinidamente
-  const [userResp, relResp, chaptersResp] = await Promise.all([
+  const [userResp, relResp, stats] = await Promise.all([
     comTimeout(supabase.from('users').select('*').eq('uid', uid).maybeSingle(), 8000),
     comTimeout(supabase.from('friends').select('id,uid,friend_uid,status').or(`uid.eq.${viewerId},friend_uid.eq.${viewerId}`), 8000),
-    // FIX: seleciona apenas 'livro' para contar livros únicos (evita buscar milhar de linhas)
-    comTimeout(supabase.from('progresso').select('livro').eq('uid', uid).eq('concluido', true), 8000),
+    calcularEstatisticasPerfil(uid),
   ]);
   if (userResp.error) throw userResp.error;
   if (relResp.error) throw relResp.error;
-  if (chaptersResp.error) throw chaptersResp.error;
 
   const rows = (relResp.data || []).filter((r) => ((r.uid === viewerId && r.friend_uid === uid) || (r.uid === uid && r.friend_uid === viewerId)));
   const jaAmigo = rows.some((r) => r.status === 'accepted');
@@ -476,15 +503,13 @@ async function dadosPerfil(uid, viewerId) {
   const badgesObj = userResp.data?.badges || {};
   const trofeus = Object.keys(badgesObj).length;
 
-  // FIX: conta livros únicos explorados
-  const livrosUnicos = new Set((chaptersResp.data || []).map(r => r.livro).filter(Boolean));
-
   return {
     userData: userResp.data,
     jaAmigo,
     pendente: euEnvieiPendente,
     pedidoRecebido: eleMeEnviouPendente,
-    livrosLidos: livrosUnicos.size,
+    versosLidos: stats.versosLidos,
+    livrosLidos: stats.livrosLidos,
     trofeus
   };
 }
@@ -514,7 +539,6 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
   };
   overlay.addEventListener('click', (e) => { if (e.target === overlay) fecharOverlay(); });
 
-  // FIX: timeout reduzido para 10s (dadosPerfil já tem timeout interno de 8s)
   const _timeoutId = setTimeout(() => {
     if (!_fechado) {
       fecharOverlay();
@@ -523,13 +547,12 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
   }, 10000);
 
   try {
-    // FIX: getUser com timeout próprio para não travar
     const authResp = await comTimeout(supabase.auth.getUser(), 5000);
     const user = authResp?.data?.user;
     if (reqId !== _perfilRequestId) return;
     if (!user) { fecharOverlay(); return; }
 
-    const { userData, jaAmigo, pendente, pedidoRecebido, livrosLidos, trofeus } = await dadosPerfil(uid, user.id);
+    const { userData, jaAmigo, pendente, pedidoRecebido, versosLidos, livrosLidos, trofeus } = await dadosPerfil(uid, user.id);
     if (reqId !== _perfilRequestId) return;
     if (!userData) {
       clearTimeout(_timeoutId);
@@ -562,7 +585,7 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
         <div class="perfil-points">${Number(userData.points) || 0} pts</div>
         <div class="perfil-grid">
           <div><span>Nível</span><strong>${nivel}</strong></div>
-          <div><span>Idade</span><strong>${idade(userData.data_nascimento)}</strong></div>
+          <div><span>Versos lidos</span><strong>${versosLidos}</strong></div>
           <div><span>Livros lidos</span><strong>${livrosLidos}</strong></div>
           <div><span>Troféus</span><strong>${trofeus}</strong></div>
         </div>
@@ -595,15 +618,14 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
       window.mostrarBadges?.();
     });
 
-    // BUG-F: converte points para Number explicitamente antes de passar para duel.js
     overlay.querySelector('#perfil-duel-btn')?.addEventListener('click', () => {
       fecharOverlay();
       window.iniciarDesafioUsuario({
         uid,
         nome,
         foto,
-        name: nome,                             // compatibilidade com ambos os campos
-        points: Number(userData.points || 0)    // BUG-F: garante número
+        name: nome,
+        points: Number(userData.points || 0)
       });
     });
     overlay.querySelector('#perfil-duel-btn-offline')?.addEventListener('click', () => {
