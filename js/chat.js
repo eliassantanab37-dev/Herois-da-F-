@@ -248,13 +248,27 @@ const EMOJIS_CHAT = [
     .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
     .chat-send-icon { font-size: 1rem; color: #ddd; pointer-events: none; line-height: 1; }
 
-    /* ── Coluna direita: áudio em cima + enviar embaixo ── */
+    /* ── Linha do composer — garante textarea à esq, botões à dir ── */
+    .chat-bottom {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 6px 8px 6px 8px;
+      width: 100%;
+    }
+    .chat-input-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ── Coluna direita: imagem (ao lado do textarea) + áudio/enviar ── */
     .chat-right-col {
       display: flex;
       flex-direction: column;
       gap: 6px;
       align-items: center;
       flex-shrink: 0;
+      margin-left: auto;
     }
 
     /* ── Botão anexar imagem ── */
@@ -903,16 +917,15 @@ window.abrirChat = async function (amigoId, nome = '') {
           <textarea id="chat-input" rows="4" placeholder="Digite sua mensagem" autocomplete="off"></textarea>
         </div>
 
-        <!-- Botão imagem -->
-        <button id="chat-image-btn" class="chat-image-btn" type="button" title="Enviar imagem" aria-label="Enviar imagem">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/>
-          </svg>
-        </button>
         <input id="chat-image-input" type="file" accept="image/*" style="display:none;">
 
-        <!-- Coluna direita: áudio (cima) + enviar (baixo) -->
+        <!-- Coluna direita grudada na borda: imagem, áudio, enviar -->
         <div class="chat-right-col">
+          <button id="chat-image-btn" class="chat-image-btn" type="button" title="Enviar imagem" aria-label="Enviar imagem">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/>
+            </svg>
+          </button>
           <button id="chat-audio-btn" class="chat-audio-btn" type="button" title="Segure para gravar áudio"></button>
           <button id="chat-send" class="chat-send" type="button" aria-label="Enviar">
             <span class="chat-send-icon">➤</span>
