@@ -529,12 +529,50 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
     ultimaPosicaoScroll = window.scrollY;
     let ultimaAtualizacao = Date.now();
 
-    import('./bible.js').then(modulo => {
+    import('./bible.js').then(async (modulo) => {
         const livro = modulo.bible[chaveLivro];
         if (!livro) return alert('Livro não encontrado!');
 
         const capitulo = livro.capitulos[numeroCapitulo];
         if (!capitulo) return alert('Capítulo não encontrado!');
+
+        // ── Buscar usuário e versos já lidos ──────────────────────────────
+        const user = await modulo.getUsuarioAtual?.() || null;
+
+        let versosLidos = new Set();
+
+        if (user) {
+            const { data, error } = await supabase
+                .from('versos_lidos')
+                .select('verso')
+                .eq('uid', user.id)
+                .eq('livro', chaveLivro)
+                .eq('capitulo', Number(numeroCapitulo))
+                .eq('lido', true);
+
+            if (error) {
+                console.error('[versos_lidos] erro ao buscar:', error);
+            } else {
+                versosLidos = new Set((data || []).map(v => Number(v.verso)));
+            }
+        }
+
+        // ── Montar versos individualmente ─────────────────────────────────
+        const linhasVersos = String(capitulo.texto || '')
+            .split('\n')
+            .filter(v => v.trim());
+
+        const versosHtml = linhasVersos.map((linha, index) => {
+            const numeroVerso = index + 1;
+            const lido = versosLidos.has(numeroVerso);
+            return `
+                <div class="verso-item${lido ? ' verso-lido' : ''}"
+                     data-verso="${numeroVerso}"
+                     style="margin-bottom:14px; padding:12px 14px; border-radius:12px; cursor:pointer; transition:all .2s ease;">
+                    <span style="color:#d4af37; font-weight:700; margin-right:8px;">${numeroVerso}</span>
+                    <span>${linha}</span>
+                </div>`;
+        }).join('');
 
         window._paginaAtualJogo = 'capitulo';
 
@@ -554,8 +592,12 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
 
                 <div id="texto-leitura" class="texto-biblico"
                      style="font-size:1.15rem; background: rgba(0, 0, 0, 0.4); padding: 25px; border-radius: 15px; border-left: 4px solid #d4af37; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">
-                    ${capitulo.texto.replace(/\n/g, '<br>')}
+                    ${versosHtml}
                 </div>
+
+                ${user ? `<div style="margin-top:12px; text-align:center; color:#888; font-size:.82rem;">
+                    Clique em um verso para marcá-lo como lido ✨
+                </div>` : ''}
 
                 <div style="margin-top:40px; text-align:center;">
                     <button id="btn-missao"
@@ -566,6 +608,25 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
                 </div>
             </div>
         `;
+
+        // ── Eventos de clique nos versos ──────────────────────────────────
+        if (user && typeof modulo.salvarVersoLido === 'function') {
+            container.querySelectorAll('#texto-leitura .verso-item').forEach((elementoVerso) => {
+                elementoVerso.addEventListener('click', async () => {
+                    const numeroVerso = Number(elementoVerso.dataset.verso);
+                    if (!numeroVerso) return;
+
+                    elementoVerso.classList.add('verso-lido');
+
+                    await modulo.salvarVersoLido(
+                        user.id,
+                        chaveLivro,
+                        Number(numeroCapitulo),
+                        numeroVerso
+                    );
+                });
+            });
+        }
 
         // FIX #4: escapeUrl para evitar injeção de CSS
         const bgRaw = livro.background || '';

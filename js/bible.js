@@ -293,6 +293,35 @@ function getBooks() {
   }));
 }
 
+// ── EXPORTADAS para uso no game.js ───────────────────────────────────────────
+export async function getUsuarioAtual() {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user || null;
+}
+
+export async function salvarVersoLido(uid, livro, capitulo, verso) {
+  if (!uid || !livro || !capitulo || !verso) return;
+
+  const { error } = await supabase
+    .from('versos_lidos')
+    .upsert(
+      [{
+        uid,
+        livro,
+        capitulo,
+        verso,
+        lido: true,
+        createdat: new Date().toISOString()
+      }],
+      { onConflict: 'uid,livro,capitulo,verso' }
+    );
+
+  if (error) {
+    console.error('[versos_lidos] erro ao salvar:', error);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 window.carregarListaLivros = async function carregarListaLivros() {
   const container = document.getElementById('bible-text');
   const readingView = document.getElementById('reading-view');
