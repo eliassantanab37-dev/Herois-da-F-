@@ -446,6 +446,8 @@
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;
+      // Não inicializa o jogo se recovery de senha estiver ativo
+      if (window._duelRecoveryMode) return;
       if (!bootstrapSessaoConcluido) {
         // Guarda para processar após o bootstrap (evita race condition)
         sessaoPendente = { user };
@@ -459,15 +461,21 @@
     });
 
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await inicializarUsuario(session.user);
+    // Não inicializa o jogo se recovery de senha estiver ativo
+    if (!window._duelRecoveryMode) {
+      if (session?.user) {
+        await inicializarUsuario(session.user);
+      } else {
+        await destruirEstadoUsuario();
+      }
     } else {
-      await destruirEstadoUsuario();
+      // Recovery ativo: garante que a tela de login fique visível (não o jogo)
+      mostrarTelaLogin();
     }
     bootstrapSessaoConcluido = true;
 
     // Processa sessão que chegou enquanto o bootstrap ainda corria
-    if (sessaoPendente !== null) {
+    if (sessaoPendente !== null && !window._duelRecoveryMode) {
       const { user } = sessaoPendente;
       sessaoPendente = null;
       if (user) {

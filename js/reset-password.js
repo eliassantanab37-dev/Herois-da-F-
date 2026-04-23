@@ -29,7 +29,14 @@ function setMessage(texto, tipo = 'normal') {
 
 function isRecoveryHash() {
     const hash = window.location.hash || '';
-    return hash.includes('type=recovery') || hash.includes('access_token=');
+    const search = window.location.search || '';
+    // Supabase v2 PKCE: envia ?code=... na query string
+    // Supabase v1/legado: envia #type=recovery ou #access_token= no hash
+    return (
+        search.includes('code=') ||
+        hash.includes('type=recovery') ||
+        hash.includes('access_token=')
+    );
 }
 
 function showResetScreen() {
@@ -61,9 +68,13 @@ function hideResetScreen() {
 async function tryPrepareRecoveryScreen() {
     if (!isRecoveryHash()) return;
 
+    // Sinaliza para o index.html não inicializar o jogo enquanto recovery estiver ativo
+    window._duelRecoveryMode = true;
+
     showResetScreen();
 
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    // Aguarda o Supabase processar o código/token da URL
+    await new Promise((resolve) => setTimeout(resolve, 900));
 
     const { data, error } = await supabase.auth.getSession();
 
@@ -73,6 +84,7 @@ async function tryPrepareRecoveryScreen() {
 
     if (!data?.session) {
         setMessage('Link de recuperação inválido ou expirado. Peça um novo e-mail de recuperação.', 'erro');
+        window._duelRecoveryMode = false;
     }
 }
 
@@ -82,8 +94,10 @@ if (cancelButton) {
             await supabase.auth.signOut();
         } catch (_) {}
 
+        window._duelRecoveryMode = false;
         hideResetScreen();
-        window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}`);
+        // Remove tanto hash quanto query string do link de recovery
+        window.history.replaceState({}, '', window.location.pathname);
     });
 }
 
@@ -129,8 +143,10 @@ if (resetButton) {
             await supabase.auth.signOut();
 
             setTimeout(() => {
+                window._duelRecoveryMode = false;
                 hideResetScreen();
-                window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}`);
+                // Remove tanto hash quanto query string do link de recovery
+                window.history.replaceState({}, '', window.location.pathname);
             }, 1500);
         } catch (erro) {
             console.error('[reset-password] Erro ao atualizar senha:', erro);
@@ -142,8 +158,15 @@ if (resetButton) {
     });
 }
 
-supabase.auth.onAuthStateChange((event) => {
+supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') {
+        window._duelRecoveryMode = true;
+        showResetScreen();
+    }
+    // Supabase PKCE às vezes emite SIGNED_IN em vez de PASSWORD_RECOVERY
+    // quando o usuário clica no link de recuperação — detectamos pelo hash/query também
+    if (event === 'SIGNED_IN' && isRecoveryHash()) {
+        window._duelRecoveryMode = true;
         showResetScreen();
     }
 });
