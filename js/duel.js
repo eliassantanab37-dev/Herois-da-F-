@@ -25,6 +25,7 @@ let _aceitando = false;
 let _ensureMutex = Promise.resolve();
 const _advancingLocks = new Set();
 const _closedFinalDuels = new Set();
+let _visibilityHandler = null;
 
 // ── BANCO DE QUESTÕES ──────────────────────────────────────
 // ── BANCO DE QUESTÕES CORRIGIDO ──────────────────────────────
@@ -301,6 +302,10 @@ function injectStyles() {
   @keyframes silverShine { from { left: -70%; } to { left: 130%; } }
   @keyframes championGlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
   @keyframes pdPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+  @keyframes arenaFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes badgePop { 0% { opacity:0; transform:translate(-50%,-50%) scale(.7); } 18% { opacity:1; transform:translate(-50%,-50%) scale(1.08); } 30% { transform:translate(-50%,-50%) scale(1); } 72% { opacity:1; } 100% { opacity:0; transform:translate(-50%,-50%) scale(.9); } }
+  @keyframes loaderSpin { to { transform: rotate(360deg); } }
+  @keyframes oppFlash { 0%,100% { background:rgba(255,255,255,.03); border-color:rgba(212,175,55,.18); } 40% { background:rgba(46,204,113,.14); border-color:rgba(46,204,113,.55); } }
 
   .presence-dot { position: absolute; right: 1px; bottom: 1px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #111; z-index: 3; }
   .presence-dot.online { background: #00e676; box-shadow: 0 0 8px #00e676, 0 0 16px rgba(0,230,118,.5); animation: pdPulse 1.8s ease infinite; }
@@ -363,7 +368,42 @@ function injectStyles() {
     position: fixed; inset: 0; z-index: 9998;
     background: linear-gradient(180deg, #0a0000 0%, #130505 30%, #070707 100%);
     overflow: auto;
+    animation: arenaFadeIn 220ms ease both;
   }
+
+  /* Loader de sincronização */
+  .duel-sync-loader {
+    position: fixed; inset: 0; z-index: 10100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.72); backdrop-filter: blur(8px);
+    gap: 14px;
+  }
+  .duel-sync-loader .spin {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 3px solid rgba(212,175,55,.2); border-top-color: #d4af37;
+    animation: loaderSpin .75s linear infinite;
+  }
+  .duel-sync-loader .lbl {
+    color: #f4d15f; font-family: 'Cinzel', serif; font-weight: 700; font-size: .9rem;
+    letter-spacing: .5px;
+  }
+
+  /* Badge de rodada */
+  .duel-round-badge {
+    position: fixed; top: 50%; left: 50%; z-index: 10090;
+    transform: translate(-50%,-50%) scale(1);
+    background: linear-gradient(135deg, #1a0a00, #2e1a00);
+    border: 2px solid #d4af37;
+    border-radius: 20px; padding: 18px 36px; text-align: center;
+    box-shadow: 0 0 40px rgba(212,175,55,.35);
+    pointer-events: none;
+    animation: badgePop 700ms ease forwards;
+  }
+  .duel-round-badge .rb-label { color: #d4af37; font-size: .78rem; letter-spacing: 1px; font-weight: 700; }
+  .duel-round-badge .rb-num { color: #f6d875; font-family: 'Cinzel', serif; font-size: 2rem; font-weight: 900; line-height: 1.1; }
+
+  /* Flash no card do oponente */
+  .arena-status-card.opp-flash { animation: oppFlash .9s ease; }
 
   .duel-arena .arena-wrap { max-width: 760px; margin: 0 auto; padding: 0 14px 24px; }
 
@@ -499,6 +539,29 @@ function removeOverlay(sel) {
   document.querySelector(sel)?.remove();
 }
 
+// ── LOADER / BADGE ─────────────────────────────────────────
+function showLoader(label = 'Sincronizando duelo...') {
+  hideLoader();
+  const el = document.createElement('div');
+  el.className = 'duel-sync-loader';
+  el.id = 'duel-sync-loader';
+  el.innerHTML = `<div class="spin"></div><div class="lbl">${esc(label)}</div>`;
+  document.body.appendChild(el);
+}
+
+function hideLoader() {
+  document.getElementById('duel-sync-loader')?.remove();
+}
+
+function showRoundBadge(roundNumber, total = TOTAL_ROUNDS) {
+  document.querySelector('.duel-round-badge')?.remove();
+  const el = document.createElement('div');
+  el.className = 'duel-round-badge';
+  el.innerHTML = `<div class="rb-label">⚔️ NOVA RODADA</div><div class="rb-num">${roundNumber} de ${total}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+}
+
 function cleanupTimer() {
   if (_renderTimer) {
     clearInterval(_renderTimer);
@@ -581,11 +644,26 @@ function duelTeardownInternal() {
     _invitePollTimer = null;
   }
 
+  // Remove listener de visibilidade se existir
+  if (_visibilityHandler) {
+    document.removeEventListener('visibilitychange', _visibilityHandler);
+    _visibilityHandler = null;
+  }
+
   cleanupRealtime('_duelChannel');
   cleanupRealtime('_answersChannel');
 
   removeOverlay('.duel-overlay');
   removeOverlay('.duel-arena');
+  removeOverlay('.duel-final');
+  removeOverlay('#duel-final-overlay');
+  removeOverlay('.duel-round-badge');
+  hideLoader();
+
+  // Limpa o ID do duelo fechado do Set para permitir novos duelos
+  if (_currentDuelId) {
+    _closedFinalDuels.delete(_currentDuelId);
+  }
 
   _duelStateCache = null;
   _currentDuelId = null;
@@ -1032,19 +1110,25 @@ function renderInviteModal(invite) {
       };
 
       status.textContent = 'Criando batalha...';
+      showLoader('Criando batalha...');
       const duel = await createDuel(fromUser, toUser);
 
       await updateInvite(invite.id, {
         status: 'aceito',
         duelo_id: duel.id
       });
+      hideLoader();
 
       clearTimeout(expireTimer);
       _closedFinalDuels.delete(duel.id);
       ov.remove();
+
+      // Pequeno delay para garantir que o realtime do convidante receba o UPDATE antes de abrir
+      await new Promise(r => setTimeout(r, 400));
       await openDuelArena(duel.id);
     } catch (e) {
       console.error('[duel] accept invite erro:', e);
+      hideLoader();
       clearTimeout(expireTimer);
       status.textContent = 'Erro ao iniciar.';
       btnAccept.disabled = false;
@@ -1082,6 +1166,7 @@ async function renderArena(duel) {
 
   if (!q?.pergunta || !Array.isArray(q.opcoes) || !q.opcoes.length) {
     console.error('[duel] pergunta inválida:', duel.current_round, q);
+    cleanupTimer(); // garante que nenhum timer fique solto
     toast('Erro ao carregar a pergunta do duelo.', false);
     return;
   }
@@ -1160,6 +1245,19 @@ async function renderArena(duel) {
     oppStatusCard.innerHTML = `✅ Adversário já respondeu<small>Status do oponente</small>`;
   }
 
+  // Status visual de "você já respondeu" — atualiza card imediatamente
+  const myStatusCard = arena.querySelector('.arena-status-card');
+  function markMyAnswered(selectedBtn) {
+    optionButtons.forEach(b => { b.disabled = true; });
+    if (selectedBtn) selectedBtn.classList.add('selected');
+    if (myStatusCard) {
+      myStatusCard.innerHTML = `✅ Resposta enviada!<small>Aguardando adversário...</small>`;
+    }
+  }
+  if (meAnswered && myStatusCard) {
+    myStatusCard.innerHTML = `✅ Resposta enviada!<small>Aguardando adversário...</small>`;
+  }
+
   optionButtons.forEach(btn => {
     btn.onclick = async () => {
       if (_answerSubmitting || meAnswered) return;
@@ -1167,14 +1265,14 @@ async function renderArena(duel) {
       const idx = Number(btn.dataset.index);
 
       try {
-        optionButtons.forEach(b => b.disabled = true);
-        btn.classList.add('selected');
+        markMyAnswered(btn);
         await submitAnswer(duel.id, duel.current_round, idx);
       } catch (e) {
         console.error('[duel] submitAnswer click erro:', e);
         toast('Erro ao enviar resposta.', false);
-        optionButtons.forEach(b => b.disabled = false);
+        optionButtons.forEach(b => { b.disabled = !!meAnswered; });
         btn.classList.remove('selected');
+        if (myStatusCard) myStatusCard.innerHTML = `⌛ Aguardando sua resposta<small>Seu status nesta rodada</small>`;
       } finally {
         _answerSubmitting = false;
       }
@@ -1194,11 +1292,14 @@ async function renderArena(duel) {
     }
   };
 
+  let _timerFired = false;
+
   const tick = async () => {
     const sec = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
     if (timerEl) timerEl.textContent = `Tempo: ${sec}s`;
 
-    if (sec <= 0) {
+    if (sec <= 0 && !_timerFired) {
+      _timerFired = true;
       cleanupTimer();
       try {
         await advanceIfRoundFinished(duel.id, duel.current_round);
@@ -1208,6 +1309,26 @@ async function renderArena(duel) {
     }
   };
 
+  // Proteção: quando a aba volta do fundo, recalcula e tenta avançar se já expirou
+  if (_visibilityHandler) {
+    document.removeEventListener('visibilitychange', _visibilityHandler);
+  }
+  _visibilityHandler = async () => {
+    if (document.visibilityState !== 'visible') return;
+    const remaining = deadlineMs - Date.now();
+    if (remaining <= 0 && !_timerFired) {
+      _timerFired = true;
+      cleanupTimer();
+      try {
+        await advanceIfRoundFinished(duel.id, duel.current_round);
+      } catch (e) {
+        console.warn('[duel] visibilitychange advance erro:', e);
+      }
+    }
+  };
+  document.addEventListener('visibilitychange', _visibilityHandler);
+
+  cleanupTimer(); // garante nenhum timer fantasma antes de criar
   tick();
   _renderTimer = setInterval(tick, 250);
 }
@@ -1274,6 +1395,7 @@ async function advanceIfRoundFinished(duelId, roundNumber) {
         loserUid = duel.player1_uid;
       }
 
+      showLoader('Finalizando duelo...');
       const updated = await safeAdvanceRound(
         duel,
         roundNumber,
@@ -1284,14 +1406,24 @@ async function advanceIfRoundFinished(duelId, roundNumber) {
         winnerUid,
         loserUid
       );
+      hideLoader();
 
-      if (!updated) return;
+      if (!updated) {
+        // Outro cliente finalizou primeiro — busca estado real e exibe
+        const fresh = await fetchDuel(duelId);
+        if (fresh) await renderFinal(fresh);
+        return;
+      }
 
-      await aplicarPontosDueloNoServidor(updated.id);
+      // Só aplica pontos se ainda não foram aplicados (evita dupla pontuação)
+      if (!updated.points_applied) {
+        await aplicarPontosDueloNoServidor(updated.id);
+      }
       await renderFinal(updated);
       return;
     }
 
+    showLoader('Avançando rodada...');
     const updated = await safeAdvanceRound(
       duel,
       roundNumber,
@@ -1299,9 +1431,27 @@ async function advanceIfRoundFinished(duelId, roundNumber) {
       score2,
       false
     );
+    hideLoader();
 
-    if (!updated) return;
+    if (!updated) {
+      // Outro cliente avançou primeiro — busca estado atual e re-renderiza
+      const fresh = await fetchDuel(duelId);
+      if (fresh && fresh.status !== 'finalizada') {
+        showRoundBadge(fresh.current_round);
+        await new Promise(r => setTimeout(r, 260)); // aguarda badge desaparecer parcialmente
+        await renderArena(fresh);
+      } else if (fresh) {
+        await renderFinal(fresh);
+      }
+      return;
+    }
+
+    showRoundBadge(updated.current_round);
+    await new Promise(r => setTimeout(r, 260));
     await renderArena(updated);
+  } catch (e) {
+    hideLoader();
+    console.warn('[duel] advanceIfRoundFinished erro:', e);
   } finally {
     _advancingLocks.delete(lockKey);
   }
@@ -1388,10 +1538,34 @@ async function renderFinal(duel) {
 
 // ── OBSERVERS ──────────────────────────────────────────────
 async function openDuelArena(duelId) {
+  showLoader('Abrindo arena...');
   const duel = await fetchDuel(duelId);
   _closedFinalDuels.delete(duelId);
   await ensureObservers(duelId);
+  hideLoader();
   await renderArena(duel);
+
+  // Re-sync de segurança: 600ms depois, busca estado atual
+  // Cobre o caso raro de "pra mim abriu, pro outro não"
+  setTimeout(async () => {
+    try {
+      if (_currentDuelId !== duelId) return; // já mudou de duelo
+      const fresh = await fetchDuel(duelId);
+      if (!fresh) return;
+      fresh.questions = normalizeQuestionList(fresh.questions);
+
+      // Só re-renderiza se a rodada ou status mudou desde que abrimos
+      const cachedRound = Number(_duelStateCache?.current_round || 0);
+      const freshRound = Number(fresh.current_round || 0);
+      if (fresh.status === 'finalizada' && !_closedFinalDuels.has(fresh.id)) {
+        await renderFinal(fresh);
+      } else if (freshRound > cachedRound) {
+        await renderArena(fresh);
+      }
+    } catch (e) {
+      console.warn('[duel] resync após abertura:', e);
+    }
+  }, 600);
 }
 
 async function ensureObservers(duelId = null) {
@@ -1493,6 +1667,12 @@ async function ensureObservers(duelId = null) {
           const row = payload.new;
           if (!row) return;
           row.questions = normalizeQuestionList(row.questions);
+
+          // Só atualiza cache se a linha recebida é mais recente (evita estado antigo sobrescrever)
+          const cachedRound = Number(_duelStateCache?.current_round || 0);
+          const newRound = Number(row.current_round || 0);
+          if (_duelStateCache && _duelStateCache.id === row.id && newRound < cachedRound) return;
+
           _duelStateCache = row;
           _currentDuelId = row.id;
 
@@ -1524,8 +1704,20 @@ async function ensureObservers(duelId = null) {
                 await renderFinal(duel);
               }
             } else {
-              await renderArena(duel);
+              // Apenas tenta avançar — o _duelChannel cuida do re-render via realtime
               await advanceIfRoundFinished(duelId, row.round_number);
+              // Atualiza status do oponente na tela sem re-renderizar tudo
+              const me2 = await getMe();
+              if (row.uid !== me2?.id) {
+                const oppCard = document.getElementById('opp-status-card');
+                if (oppCard && duel.current_round === row.round_number) {
+                  oppCard.innerHTML = `✅ Adversário respondeu!<small>Status do oponente</small>`;
+                  oppCard.classList.remove('opp-flash');
+                  // Força reflow para reiniciar a animação
+                  void oppCard.offsetWidth;
+                  oppCard.classList.add('opp-flash');
+                }
+              }
             }
           } catch (e) {
             console.warn('[duel] answers observer erro:', e);
@@ -1536,7 +1728,7 @@ async function ensureObservers(duelId = null) {
 
     if (!_presenceChannel) {
       _presenceChannel = supabase
-        .channel(`duel-users-${Date.now()}`)
+        .channel(`duel-users-presence`)
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
