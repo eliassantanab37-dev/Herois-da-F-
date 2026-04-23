@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './config.js';
+import { inicializarPushNotifications } from './chat.js';
 
 let chFriends = null;
 let chNotif = null;
@@ -239,6 +240,12 @@ export async function iniciarSocial(user) {
 
   if (!user?.id) return;
   _meuUid = user.id;
+
+  // ── Inicializa Push Notifications ──────────────────────
+  // Dispara em background; não bloqueia o carregamento do app
+  inicializarPushNotifications(user.id).catch((e) =>
+    console.warn('[social] push init falhou:', e)
+  );
 
   if (window.ensureObservers) {
     try { await window.ensureObservers(); } catch (e) { console.warn('[social] ensureObservers falhou:', e); }

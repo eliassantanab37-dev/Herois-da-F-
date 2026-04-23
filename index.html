@@ -275,6 +275,7 @@
   <script type="module" src="js/game.js"></script>
   <script type="module" src="js/ui.js"></script>
   <script type="module" src="js/chat.js"></script>
+  <script type="module" src="js/push-open.js"></script>
   <script type="module" src="js/social.js"></script>
   <script type="module" src="js/badges.js"></script>
   <script type="module" src="js/stats.js"></script>
@@ -287,6 +288,18 @@
     import { iniciarListenerUsuario, pararListenerUsuario } from './js/auth.js';
     import { iniciarSocial } from './js/social.js';
     import { iniciarMonitorChat } from './js/chat.js';
+    import { verificarAberturaPorPush } from './js/push-open.js';
+
+    // ── Registra o Service Worker logo no início ──────────────
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+        console.info('[SW] registrado:', reg.scope);
+      } catch (e) {
+        console.warn('[SW] falha ao registrar:', e);
+      }
+    }
 
     const header = document.querySelector('.top-nav');
     const sidebar = document.getElementById('side-menu');
@@ -383,6 +396,7 @@
         await iniciarListenerUsuario(user);
         await iniciarSocial(user); // FIX-CRÍTICO: await obrigatório aqui
         iniciarMonitorChat(user);
+        verificarAberturaPorPush();
         await atualizarMenuUsuario(user.id);
         try { await window.carregarListaLivros?.(); } catch (e) { console.error(e); }
 
@@ -544,14 +558,7 @@
 
     atualizarBotaoInstalar();
 
-    if ('serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
-        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
-      } catch (e) {
-        console.warn(e);
-      }
-    }
+
   </script>
 </body>
 </html>

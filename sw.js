@@ -1,7 +1,7 @@
 // sw.js — Service Worker do Heróis da Fé (Supabase) — versão corrigida
 
-const CACHE_NAME = 'herois-da-fe-v10.2';
-const CACHE_ESTATICO = 'herois-estatico-v10.2';
+const CACHE_NAME = 'herois-da-fe-v11.0';
+const CACHE_ESTATICO = 'herois-estatico-v11.0';
 
 const SHELL = [
     '/',
@@ -17,6 +17,7 @@ const SHELL = [
     '/js/ui.js',
     '/js/social.js',
     '/js/chat.js',
+    '/js/push-open.js',
     '/js/badges.js',
     '/js/stats.js',
     '/js/challenges.js',
@@ -182,10 +183,25 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
-    if (event.action === 'abrir' || !event.action) {
-        const url = event.notification.data?.url || 'https://www.heroisdafe.app.br/';
-        event.waitUntil(clients.openWindow(url));
-    }
+    if (event.action === 'fechar') return;
+
+    const url = event.notification.data?.url || 'https://www.heroisdafe.app.br/';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+            // Se o app já está aberto em alguma aba, foca e navega para a URL correta
+            for (const client of windowClients) {
+                const clientUrl = new URL(client.url);
+                const targetUrl = new URL(url);
+                if (clientUrl.origin === targetUrl.origin) {
+                    client.navigate(url);
+                    return client.focus();
+                }
+            }
+            // Nenhuma aba aberta — abre uma nova
+            return clients.openWindow(url);
+        })
+    );
 });
 
-console.log('[SW] Heróis da Fé v10.2 ativo!');
+console.log('[SW] Heróis da Fé v11.0 ativo!');
