@@ -1395,7 +1395,9 @@ async function finishByGiveUp(duel, quitterUid) {
 }
 
 async function aplicarPontosDueloNoServidor(duelId) {
-  const { error } = await supabase.rpc('aplicar_pontos_duelo', { p_duelo_id: duelId });
+  const dueloIdNum = Number(duelId);
+  if (!dueloIdNum) { console.warn('[duel] aplicarPontosDueloNoServidor: duelId inválido:', duelId); return; }
+  const { error } = await supabase.rpc('aplicar_pontos_duelo', { p_duelo_id: dueloIdNum });
   if (error) {
     console.warn('[duel] rpc aplicar_pontos_duelo erro:', error);
   }
@@ -2423,8 +2425,16 @@ function tocarSomEmpate() {
 // e problemas de RLS ao tentar atualizar stats do adversário.
 async function atualizarDueloStats(duel) {
   try {
+    // Garante que winner_uid e loser_uid estão presentes antes de chamar a RPC
+    if (!duel.winner_uid && !duel.loser_uid && duel.ended_reason !== 'empate') {
+      console.warn('[duelo_stats] atualizarDueloStats: winner_uid/loser_uid ausentes, abortando RPC');
+      return;
+    }
+    // bigint no banco — p_duelo_id deve ser Number, nunca string nem UUID
+    const dueloIdNum = Number(duel.id);
+    if (!dueloIdNum) { console.warn('[duelo_stats] duel.id inválido:', duel.id); return; }
     const { error } = await supabase.rpc('aplicar_resultado_duelo', {
-      p_duelo_id: duel.id
+      p_duelo_id: dueloIdNum
     });
     if (error) {
       console.error('[duelo_stats] erro ao aplicar resultado via RPC:', error);
