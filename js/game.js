@@ -297,6 +297,16 @@ async function mostrarRanking() {
     window._paginaAtualJogo = 'ranking';
     document.body.classList.add('modo-ranking-ativo');
 
+    // FIX #6: cleanup garantido antes de criar novo canal
+    if (_rankingChannel) {
+        await supabase.removeChannel(_rankingChannel);
+        _rankingChannel = null;
+    }
+
+    _renderizarTelaRankingPrincipal(bibleText);
+}
+
+function _renderizarTelaRankingPrincipal(bibleText) {
     bibleText.innerHTML = `
         <style>
             .trofeu-container { position: relative; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; }
@@ -309,16 +319,81 @@ async function mostrarRanking() {
             @keyframes trofeu-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
             .nivel-chamas-ouro { color: #000 !important; font-weight: 900; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; display: inline-block; background: linear-gradient(45deg,#d4af37,#f9f295,#ffdf00,#d4af37); background-size: 400% 400%; animation: chamasOuroAnim 3s ease infinite; border: 1px solid #d4af37; font-size: 0.65rem; margin-top: 4px; box-shadow: 0 0 8px rgba(212,175,55,0.5); }
             @keyframes chamasOuroAnim { 0%,100% { background-position: 0% 50%; box-shadow: 0 0 5px #d4af37; } 50% { background-position: 100% 50%; box-shadow: 0 0 15px #ffdf00; } }
+
+            /* ── BOTÃO DUELOS (rubi polido 3D com faíscas) ── */
+            @keyframes btnDuelShine   { 0%{left:-80%} 100%{left:130%} }
+            @keyframes btnDuelGlow    { 0%,100%{box-shadow:0 6px 30px #8b0000,0 2px 8px #ff2200,inset 0 1px 0 rgba(255,120,120,.4),inset 0 -2px 0 rgba(0,0,0,.4)} 50%{box-shadow:0 8px 45px #cc0000,0 2px 20px #ff4400,inset 0 1px 0 rgba(255,160,160,.5),inset 0 -2px 0 rgba(0,0,0,.5)} }
+            @keyframes spark          { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--sx),var(--sy)) scale(0);opacity:0} }
+            @keyframes sparkFall      { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(var(--sf)) scale(0.2);opacity:0} }
+            /* ── BOTÃO JORNADA (dourado angelical) ── */
+            @keyframes btnBibleShine  { 0%{left:-80%} 100%{left:130%} }
+            @keyframes btnBibleGlow   { 0%,100%{box-shadow:0 6px 30px rgba(212,175,55,.7),0 2px 8px rgba(255,220,80,.5),inset 0 1px 0 rgba(255,255,200,.5),inset 0 -2px 0 rgba(100,70,0,.4)} 50%{box-shadow:0 8px 50px rgba(212,175,55,.95),0 2px 25px rgba(100,180,255,.6),inset 0 1px 0 rgba(255,255,220,.7),inset 0 -2px 0 rgba(100,70,0,.5)} }
+            @keyframes angelicAura    { 0%,100%{opacity:.25;transform:scale(1)} 50%{opacity:.55;transform:scale(1.06)} }
+
+            .btn-ranking-duelos {
+                position:relative; overflow:hidden; width:100%; max-width:480px;
+                padding:22px 20px; margin:0 auto 20px; display:block;
+                background:linear-gradient(180deg,#c0202a 0%,#8b0000 40%,#6a0000 70%,#8b0000 100%);
+                border:2px solid rgba(255,100,100,.4); border-radius:18px;
+                color:#fff; font-family:'Cinzel',serif; font-size:1.25rem; font-weight:900;
+                letter-spacing:2px; cursor:pointer; text-shadow:0 2px 4px rgba(0,0,0,.6);
+                animation:btnDuelGlow 2.5s ease-in-out infinite;
+                -webkit-appearance:none; outline:none;
+            }
+            .btn-ranking-duelos::before {
+                content:''; position:absolute; top:0; left:-80%; width:40%; height:100%;
+                background:linear-gradient(90deg,transparent,rgba(255,200,200,.35),transparent);
+                transform:skewX(-20deg); animation:btnDuelShine 2s linear infinite;
+            }
+            .spark-container { position:absolute; inset:0; pointer-events:none; overflow:visible; }
+            .spark {
+                position:absolute; width:5px; height:5px; border-radius:50%;
+                background:#ffcc00; box-shadow:0 0 4px #ff8800;
+                animation:sparkFall 0.9s ease-out forwards;
+            }
+
+            .btn-ranking-biblia {
+                position:relative; overflow:hidden; width:100%; max-width:480px;
+                padding:22px 20px; margin:0 auto; display:block;
+                background:linear-gradient(180deg,#f9f295 0%,#d4af37 35%,#a07c18 70%,#d4af37 100%);
+                border:2px solid rgba(255,240,160,.6); border-radius:18px;
+                color:#1a0d00; font-family:'Cinzel',serif; font-size:1.25rem; font-weight:900;
+                letter-spacing:2px; cursor:pointer; text-shadow:0 1px 2px rgba(255,255,200,.5);
+                animation:btnBibleGlow 3s ease-in-out infinite;
+                -webkit-appearance:none; outline:none;
+            }
+            .btn-ranking-biblia::before {
+                content:''; position:absolute; top:0; left:-80%; width:40%; height:100%;
+                background:linear-gradient(90deg,transparent,rgba(255,255,220,.5),transparent);
+                transform:skewX(-20deg); animation:btnBibleShine 2.5s linear infinite;
+            }
+            .angelic-aura {
+                position:absolute; inset:-8px; border-radius:24px;
+                background:radial-gradient(ellipse at center,rgba(180,220,255,.45) 0%,transparent 70%);
+                animation:angelicAura 3s ease-in-out infinite;
+                pointer-events:none; z-index:0;
+            }
+            .btn-ranking-biblia > span { position:relative; z-index:1; }
         </style>
 
         <div style="padding:20px; text-align:center; min-height:100vh; position:relative; z-index:10;">
-            <h2 style="color:#d4af37; font-family:'Cinzel'; font-size:2rem; text-shadow:2px 2px 8px #000;">
+            <h2 style="color:#d4af37; font-family:'Cinzel'; font-size:2rem; text-shadow:2px 2px 8px #000; margin-bottom:10px;">
                 🏆 RANKING DOS HERÓIS
             </h2>
+            <p style="color:#888; margin-bottom:32px; font-family:'Poppins',sans-serif; font-size:.9rem;">Escolha a categoria do ranking</p>
 
-            <div id="ranking-lista" style="margin-top:20px;">
-                <p style="color:#888;">Convocando Guerreiros...</p>
+            <div style="max-width:480px; margin:0 auto 30px;">
+                <button class="btn-ranking-duelos" id="btn-rank-duelos">
+                    ⚔️ DUELOS
+                    <div class="spark-container" id="spark-container-duelos"></div>
+                </button>
+                <button class="btn-ranking-biblia" id="btn-rank-biblia">
+                    <div class="angelic-aura"></div>
+                    <span>📖 JORNADA BÍBLICA</span>
+                </button>
             </div>
+
+            <div id="ranking-lista" style="margin-top:10px;"></div>
 
             <button onclick="window.voltarParaBiblia()" class="btn-mission"
                 style="margin-top:30px; width:100%; max-width:700px; display:block; margin-left:auto; margin-right:auto;">
@@ -327,34 +402,267 @@ async function mostrarRanking() {
         </div>
     `;
 
-    // FIX #6: cleanup garantido antes de criar novo canal
-    if (_rankingChannel) {
-        await supabase.removeChannel(_rankingChannel);
-        _rankingChannel = null;
+    // Faíscas animadas no botão de Duelos
+    _iniciarFaiscasDuelo();
+
+    document.getElementById('btn-rank-duelos')?.addEventListener('click', () => {
+        _tocarSomTransicaoRanking();
+        _carregarRankingDuelos();
+    });
+    document.getElementById('btn-rank-biblia')?.addEventListener('click', () => {
+        _tocarSomTransicaoRanking();
+        _carregarRankingJornadaBiblica();
+    });
+}
+
+function _tocarSomTransicaoRanking() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(400, t); osc.frequency.exponentialRampToValueAtTime(900, t + 0.18);
+        gain.gain.setValueAtTime(0.15, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.3);
+    } catch (_) {}
+}
+
+function _iniciarFaiscasDuelo() {
+    const container = document.getElementById('spark-container-duelos');
+    if (!container) return;
+    let _sparkTimer = null;
+    function criarFaisca() {
+        if (!document.getElementById('spark-container-duelos')) { clearInterval(_sparkTimer); return; }
+        const spark = document.createElement('div');
+        spark.className = 'spark';
+        const startX = 10 + Math.random() * 80; // % da largura
+        const fallY = (30 + Math.random() * 60) + 'px';
+        spark.style.cssText = `left:${startX}%; top:${-5 + Math.random() * 110}%; --sf:${fallY};
+            animation-duration:${0.6 + Math.random() * 0.6}s;
+            background:${Math.random() > 0.5 ? '#ffdd00' : '#ff8800'};
+            width:${3 + Math.random() * 4}px; height:${3 + Math.random() * 4}px;`;
+        container.appendChild(spark);
+        setTimeout(() => spark.remove(), 1200);
+    }
+    _sparkTimer = setInterval(criarFaisca, 120);
+}
+
+async function _carregarRankingDuelos() {
+    const container = document.getElementById('ranking-lista');
+    if (!container) return;
+    container.innerHTML = `<div style="text-align:center; padding:30px; color:#d4af37; font-family:Cinzel;">⚔️ Convocando guerreiros...</div>`;
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: stats, error } = await supabase
+            .from('duelo_stats')
+            .select('*')
+            .order('vitorias', { ascending: false })
+            .order('maior_sequencia_vitorias', { ascending: false })
+            .order('pontos_vitoria', { ascending: false })
+            .order('duelos_total', { ascending: false })
+            .limit(50);
+
+        if (error) throw error;
+        if (!stats || stats.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:40px; color:#888; font-family:Poppins,sans-serif;">Nenhum duelo realizado ainda. Seja o primeiro guerreiro!</div>`;
+            return;
+        }
+
+        let html = `<div style="max-width:700px; margin:0 auto;">
+            <div style="text-align:center; color:#d4af37; font-family:'Cinzel'; font-size:1.1rem; margin-bottom:16px; letter-spacing:2px;">⚔️ TOP ${stats.length} GUERREIROS</div>`;
+
+        stats.forEach((s, index) => {
+            const isMe = user?.id === s.uid;
+            const foto = s.foto_usuario || gerarAvatarPadrao(s.nome_usuario || '');
+            const nome = s.nome_usuario ? (s.nome_usuario.length > 14 ? s.nome_usuario.substring(0, 14) + '…' : s.nome_usuario) : 'Herói';
+
+            let rankConteudo;
+            if (index === 0) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
+            else if (index === 1) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-prata"></div><div class="trofeu-icone">🥈</div></div>`;
+            else if (index === 2) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-bronze"></div><div class="trofeu-icone">🥉</div></div>`;
+            else rankConteudo = `<span style="color:#d4af37; font-family:Cinzel; font-weight:bold;">${index + 1}</span>`;
+
+            html += `
+                <div onclick="window.verPerfilDetalhado('${s.uid}')" style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:10px;
+                            cursor:pointer; transition:transform 0.2s;
+                            background:${index < 3 ? 'rgba(212,175,55,0.22)' : isMe ? 'rgba(212,175,55,0.12)' : 'rgba(0,0,0,0.45)'};
+                            border:1px solid ${index < 3 ? '#d4af37' : isMe ? 'rgba(212,175,55,.5)' : '#333'};
+                            border-radius:14px; backdrop-filter:blur(5px);"
+                     onmouseover="this.style.transform='scale(1.015)'"
+                     onmouseout="this.style.transform='scale(1)'">
+
+                    <div style="width:45px; display:flex; justify-content:center; align-items:center; flex-shrink:0;">
+                        ${rankConteudo}
+                    </div>
+
+                    <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid ${index < 3 ? '#d4af37' : '#555'}; object-fit:cover; flex-shrink:0;"
+                         onerror="this.src='${gerarAvatarPadrao(s.nome_usuario || '')}'">
+
+                    <div style="flex:1; text-align:left; min-width:0;">
+                        <div style="color:white; font-weight:bold; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${nome} ${isMe ? '<span style="color:#d4af37; font-size:.7rem;">(você)</span>' : ''}
+                        </div>
+                        <div style="color:#d4af37; font-size:.75rem; margin-top:2px;">
+                            ⚔️ ${s.vitorias || 0} vitórias · 🏟️ ${s.derrotas || 0} derrotas · 🤝 ${s.empates || 0} emp.
+                        </div>
+                    </div>
+
+                    <div style="text-align:right; flex-shrink:0;">
+                        <div style="color:#ff6b6b; font-size:.8rem; font-weight:bold;">⚔️ ${s.vitorias || 0}</div>
+                        <div style="color:#aaa; font-size:.7rem;">🔥 ${s.maior_sequencia_vitorias || 0} seq</div>
+                        <div style="color:#d4af37; font-size:.7rem;">${s.pontos_vitoria || 0} pts</div>
+                    </div>
+                </div>`;
+        });
+
+        container.innerHTML = html + '</div>';
+
+        // Listener realtime para ranking de duelos
+        if (window._paginaAtualJogo === 'ranking') {
+            _rankingChannel = supabase
+                .channel('duelo-stats-ranking-' + Date.now())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'duelo_stats' }, () => {
+                    if (window._paginaAtualJogo !== 'ranking') return;
+                    if (_rankingRefreshPending) return;
+                    _rankingRefreshPending = true;
+                    setTimeout(async () => {
+                        _rankingRefreshPending = false;
+                        if (window._paginaAtualJogo === 'ranking') await _carregarRankingDuelos();
+                    }, 500);
+                })
+                .subscribe();
+        }
+
+    } catch (e) {
+        console.error('[ranking] duelos erro:', e);
+        if (container) container.innerHTML = `<div style="color:#888; text-align:center; padding:30px;">⚠️ Erro ao carregar ranking. <button onclick="_carregarRankingDuelos?.()" style="color:#d4af37; background:none; border:none; cursor:pointer; font-weight:bold;">Tentar novamente</button></div>`;
+    }
+}
+
+// Expõe globalmente para uso em onclick inline
+
+// ── RANKING JORNADA BÍBLICA ────────────────────────────────────────────────
+let _rankingJornadaChannel = null;
+let _rankingJornadaRefreshPending = false;
+
+async function _carregarRankingJornadaBiblica() {
+    const container = document.getElementById('ranking-lista');
+    if (!container) return;
+    container.innerHTML = `<div style="text-align:center; padding:30px; color:#d4af37; font-family:Cinzel;">📖 Convocando heróis da jornada...</div>`;
+
+    // Limpa canal anterior
+    if (_rankingJornadaChannel) {
+        await supabase.removeChannel(_rankingJornadaChannel);
+        _rankingJornadaChannel = null;
     }
 
-    await _renderizarRanking();
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: stats, error } = await supabase
+            .from('user_stats_com_nome')
+            .select('uid, nome_usuario, total_livros_concluidos, total_capitulos_concluidos, total_versos_lidos')
+            .order('total_livros_concluidos', { ascending: false })
+            .order('total_capitulos_concluidos', { ascending: false })
+            .order('total_versos_lidos', { ascending: false })
+            .limit(50);
 
-    _rankingChannel = supabase
-        .channel('ranking-updates-' + Date.now())
-        .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'users' },
-            () => {
-                // FIX #5: só re-renderiza se ainda está na tela de ranking
-                if (window._paginaAtualJogo !== 'ranking') return;
-                if (_rankingRefreshPending) return;
-                _rankingRefreshPending = true;
-                setTimeout(async () => {
-                    _rankingRefreshPending = false;
-                    if (window._paginaAtualJogo === 'ranking') {
-                        await _renderizarRanking();
-                    }
-                }, 250);
-            }
-        )
-        .subscribe();
+        if (error) throw error;
+        if (!stats || stats.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:40px; color:#888; font-family:Poppins,sans-serif;">Nenhum herói na jornada ainda. Seja o primeiro!</div>`;
+            return;
+        }
+
+        // Busca fotos dos usuários em lote
+        const uids = stats.map(s => s.uid).filter(Boolean);
+        let fotoMap = {};
+        if (uids.length > 0) {
+            const { data: users } = await supabase
+                .from('users')
+                .select('uid, photoURL, photourl')
+                .in('uid', uids);
+            (users || []).forEach(u => { fotoMap[u.uid] = u.photoURL || u.photourl || null; });
+        }
+
+        let html = `<div style="max-width:700px; margin:0 auto;">
+            <div style="text-align:center; color:#d4af37; font-family:'Cinzel'; font-size:1.1rem; margin-bottom:16px; letter-spacing:2px;">📖 TOP ${stats.length} JORNADA BÍBLICA</div>`;
+
+        stats.forEach((s, index) => {
+            const isMe = user?.id === s.uid;
+            const livros = Number(s.total_livros_concluidos) || 0;
+            const caps   = Number(s.total_capitulos_concluidos) || 0;
+            const versos = Number(s.total_versos_lidos) || 0;
+            const nomeRaw = s.nome_usuario || 'Herói';
+            const nome = nomeRaw.length > 14 ? nomeRaw.substring(0, 14) + '…' : nomeRaw;
+            const foto = fotoMap[s.uid] || gerarAvatarPadrao(nomeRaw);
+
+            let rankConteudo;
+            if (index === 0) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
+            else if (index === 1) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-prata"></div><div class="trofeu-icone">🥈</div></div>`;
+            else if (index === 2) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-bronze"></div><div class="trofeu-icone">🥉</div></div>`;
+            else rankConteudo = `<span style="color:#d4af37; font-family:Cinzel; font-weight:bold;">${index + 1}</span>`;
+
+            html += `
+                <div onclick="window.verPerfilDetalhado('${s.uid}')"
+                     style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:10px;
+                            cursor:pointer; transition:transform 0.2s;
+                            background:${index < 3 ? 'rgba(212,175,55,0.22)' : isMe ? 'rgba(212,175,55,0.12)' : 'rgba(0,0,0,0.45)'};
+                            border:1px solid ${index < 3 ? '#d4af37' : isMe ? 'rgba(212,175,55,.5)' : '#333'};
+                            border-radius:14px; backdrop-filter:blur(5px);"
+                     onmouseover="this.style.transform='scale(1.015)'"
+                     onmouseout="this.style.transform='scale(1)'">
+
+                    <div style="width:45px; display:flex; justify-content:center; align-items:center; flex-shrink:0;">
+                        ${rankConteudo}
+                    </div>
+
+                    <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid ${index < 3 ? '#d4af37' : '#555'}; object-fit:cover; flex-shrink:0;"
+                         onerror="this.src='${gerarAvatarPadrao(nomeRaw)}'">
+
+                    <div style="flex:1; text-align:left; min-width:0;">
+                        <div style="color:white; font-weight:bold; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${nome} ${isMe ? '<span style="color:#d4af37; font-size:.7rem;">(você)</span>' : ''}
+                        </div>
+                        <div style="color:#d4af37; font-size:.75rem; margin-top:2px;">
+                            📚 ${livros} livros · 📖 ${caps} caps
+                        </div>
+                    </div>
+
+                    <div style="text-align:right; flex-shrink:0;">
+                        <div style="color:#f9f295; font-size:.8rem; font-weight:bold;">📚 ${livros}</div>
+                        <div style="color:#aaa; font-size:.7rem;">📖 ${caps} caps</div>
+                        <div style="color:#d4af37; font-size:.7rem;">✨ ${versos} versos</div>
+                    </div>
+                </div>`;
+        });
+
+        container.innerHTML = html + '</div>';
+
+        // Realtime listener
+        if (window._paginaAtualJogo === 'ranking') {
+            _rankingJornadaChannel = supabase
+                .channel('jornada-ranking-' + Date.now())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'progresso' }, () => {
+                    if (window._paginaAtualJogo !== 'ranking') return;
+                    if (_rankingJornadaRefreshPending) return;
+                    _rankingJornadaRefreshPending = true;
+                    setTimeout(async () => {
+                        _rankingJornadaRefreshPending = false;
+                        if (window._paginaAtualJogo === 'ranking') await _carregarRankingJornadaBiblica();
+                    }, 800);
+                })
+                .subscribe();
+        }
+
+    } catch (e) {
+        console.error('[ranking] jornada bíblica erro:', e);
+        if (container) container.innerHTML = `<div style="color:#888; text-align:center; padding:30px;">⚠️ Erro ao carregar ranking. <button onclick="_carregarRankingJornadaBiblica?.()" style="color:#d4af37; background:none; border:none; cursor:pointer; font-weight:bold;">Tentar novamente</button></div>`;
+    }
 }
+
+window._carregarRankingJornadaBiblica = _carregarRankingJornadaBiblica;
+
+window._carregarRankingDuelos = _carregarRankingDuelos;
 
 // Presença no ranking — fora da função async para evitar erro em strict mode
 const _RANKING_ONLINE_MS = 90000;
@@ -474,10 +782,14 @@ window.voltarParaBiblia = function () {
     document.body.style.backgroundSize = '';
     document.body.style.backgroundAttachment = '';
 
-    // Encerra apenas o canal de ranking (não o de duelo)
+    // Encerra apenas os canais de ranking (não o de duelo)
     if (_rankingChannel) {
         supabase.removeChannel(_rankingChannel);
         _rankingChannel = null;
+    }
+    if (_rankingJornadaChannel) {
+        supabase.removeChannel(_rankingJornadaChannel);
+        _rankingJornadaChannel = null;
     }
 
     // FIX #1: REMOVIDO — duelTeardown() não deve ser chamado aqui
@@ -513,6 +825,7 @@ window.exibirCapitulo = function (chaveLivro, numeroCapitulo) {
 
     limparUITravada();
 
+    tocarSomTransicaoPagina();
     container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
         <div style="text-align:center;color:#d4af37;font-family:Cinzel,serif;">
             <div style="font-size:2rem;margin-bottom:12px;">📖</div>
@@ -695,6 +1008,7 @@ function escaparParaInline(str) {
 
 window.iniciarMissao = function (chaveLivro, numeroCapitulo) {
     processandoResposta = false;
+    tocarSomTransicaoPagina();
 
     import('./bible.js').then(modulo => {
         const livro = modulo.bible[chaveLivro];
@@ -856,6 +1170,7 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
             overlay.style.cssText = `position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:99999; text-align:center; backdrop-filter:blur(8px);`;
             overlay.innerHTML = `<div style="font-size:5rem; margin-bottom:20px;">🛡️</div><div style="color:#d4af37; font-family:'Cinzel', serif; font-size:2.5rem; text-shadow:0 0 15px rgba(212,175,55,0.6);">ERROU!</div><p style="color:#fff; font-family:'Poppins', sans-serif; font-size:1.2rem; margin-top:15px;">Volte e medite no texto para encontrar a verdade...</p>`;
             document.body.appendChild(overlay);
+            tocarSomErroQuiz();
 
             setTimeout(() => {
                 overlay.style.opacity = '0';
@@ -871,6 +1186,37 @@ window.verificarResposta = async function (livroChave, capNum, ehCorreta, explic
         alert('Erro inesperado. Tente novamente.');
     }
 };
+
+function tocarSomErroQuiz() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const t = ctx.currentTime;
+        // Tom de erro descendente
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(280, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.45);
+        gain.gain.setValueAtTime(0.22, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.55);
+    } catch (_) {}
+}
+
+function tocarSomTransicaoPagina() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(350, t);
+        osc.frequency.exponentialRampToValueAtTime(650, t + 0.15);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.28);
+    } catch (_) {}
+}
 
 function tocarSomFogos() {
     try {

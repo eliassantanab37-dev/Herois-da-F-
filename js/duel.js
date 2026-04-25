@@ -1,6 +1,7 @@
 // js/duel.js — Heróis da Fé — versão sem revanche e com pontos em tempo real
 
 import { supabase } from './config.js';
+import { verificarBadgesDuelo } from './badges.js';
 
 // ── CONSTANTES ─────────────────────────────────────────────
 const ROUND_SECONDS = 20;
@@ -26,6 +27,8 @@ let _ensureMutex = Promise.resolve();
 const _advancingLocks = new Set();
 const _closedFinalDuels = new Set();
 let _visibilityHandler = null;
+// Anti-spam: impede envio de mais de 1 convite para o mesmo alvo em 30s
+const _lastInviteCount = {};
 
 // ── BANCO DE QUESTÕES ──────────────────────────────────────
 // ── BANCO DE QUESTÕES CORRIGIDO ──────────────────────────────
@@ -1270,6 +1273,7 @@ async function createDuel(fromUser, toUser) {
     loser_uid: null,
     ended_reason: null,
     points_applied: false,
+    stats_applied: false,
     updated_at: new Date().toISOString()
   };
 
@@ -1685,6 +1689,8 @@ async function renderArena(duel) {
 
     try {
       const finalDuel = await finishByGiveUp(duel, myUid);
+      await aplicarPontosDueloNoServidor(finalDuel.id);
+      await atualizarDueloStats(finalDuel);
       await renderFinal(finalDuel);
     } catch (e) {
       console.error('[duel] give up erro:', e);
@@ -1819,6 +1825,9 @@ async function advanceIfRoundFinished(duelId, roundNumber) {
       if (!updated.points_applied) {
         await aplicarPontosDueloNoServidor(updated.id);
       }
+      // Só aplica stats o cliente que venceu a corrida do safeAdvanceRound
+      // atualizarDueloStats tem sua própria trava atômica no banco (stats_applied)
+      await atualizarDueloStats(updated);
       await renderFinal(updated);
       return;
     }
@@ -1878,11 +1887,14 @@ function labelForFinal(duel, uid) {
 }
 
 async function renderFinal(duel) {
+  // Trava principal: não renderiza se já foi fechado ou já está exibido
+  if (_closedFinalDuels.has(duel.id)) return;
+  const jaExibido = document.getElementById('duel-final-overlay');
+  if (jaExibido && jaExibido.dataset.duelId === duel.id) return;
+
   injectStyles();
   cleanupTimer();
   removeOverlay('.duel-arena');
-
-  if (_closedFinalDuels.has(duel.id)) return;
 
   _duelStateCache = duel;
   _currentDuelId = duel.id;
@@ -1892,11 +1904,28 @@ async function renderFinal(duel) {
   const p2 = await getUser(duel.player2_uid);
   const winner = duel.winner_uid ? await getUser(duel.winner_uid) : null;
 
+  // Tocar som de resultado (só uma vez por duelo por cliente)
+  if (!_closedFinalDuels.has(duel.id)) {
+    if (!duel.winner_uid) {
+      tocarSomEmpate();
+    } else if (me?.id === duel.winner_uid) {
+      tocarSomVitoriaPartida();
+      if (window.confetti) {
+        setTimeout(() => window.confetti({ particleCount: 180, spread: 80, origin: { y: 0.5 }, colors: ['#d4af37','#fff','#ffdf00','#ff0000'] }), 200);
+        setTimeout(() => window.confetti({ particleCount: 100, angle: 60, spread: 60, origin: { x: 0, y: 0.6 }, colors: ['#d4af37','#ffdf00'] }), 500);
+        setTimeout(() => window.confetti({ particleCount: 100, angle: 120, spread: 60, origin: { x: 1, y: 0.6 }, colors: ['#d4af37','#ffdf00'] }), 800);
+      }
+    } else {
+      tocarSomDerrota();
+    }
+  }
+
   let ov = document.getElementById('duel-final-overlay');
   if (!ov) {
     ov = document.createElement('div');
     ov.id = 'duel-final-overlay';
     ov.className = 'duel-final';
+    ov.dataset.duelId = duel.id;
     document.body.appendChild(ov);
   }
 
@@ -2206,6 +2235,14 @@ window.iniciarDesafioUsuario = async function(target) {
 
     await limparConvitesPendentesEntre(me.id, target.uid);
 
+    // Anti-spam: não conta nem envia mais de 1 convite para o mesmo alvo em 30s
+    const _spamKey = `${me.id}_${target.uid}`;
+    if (_lastInviteCount[_spamKey] && Date.now() - _lastInviteCount[_spamKey] < 30000) {
+      toast('Aguarde 30 segundos para desafiar esse jogador novamente.', false);
+      return false;
+    }
+    _lastInviteCount[_spamKey] = Date.now();
+
     const fromUser = {
       uid: me.id,
       nome: meDb?.name || 'Jogador',
@@ -2220,6 +2257,7 @@ window.iniciarDesafioUsuario = async function(target) {
 
     await insertInvite(fromUser, toUser);
     toast('Convite de duelo enviado!', true);
+    try { await incrementarDesafiosEnviados(me.id); } catch (e) { console.warn('[duel] desafios_enviados:', e); }
 
     setTimeout(async () => {
       try {
@@ -2299,3 +2337,145 @@ window.addEventListener('beforeunload', async () => {
     console.warn('[duel] boot erro:', e);
   }
 })();
+// ── SONS DA ARENA ──────────────────────────────────────────
+function tocarSomVitoriaPartida() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    // Fanfarra de vitória épica
+    const notas = [
+      [523.25, 0.00, 0.12, 0.28, 'square'],
+      [659.25, 0.13, 0.12, 0.25, 'square'],
+      [783.99, 0.26, 0.18, 0.22, 'square'],
+      [1046.5, 0.44, 0.35, 0.30, 'square'],
+      [880.00, 0.44, 0.35, 0.15, 'sine'],
+      [1174.7, 0.44, 0.35, 0.10, 'sine'],
+    ];
+    notas.forEach(([freq, delay, dur, vol, type]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t + delay);
+      gain.gain.linearRampToValueAtTime(vol, t + delay + 0.03);
+      gain.gain.setValueAtTime(vol, t + delay + dur - 0.05);
+      gain.gain.linearRampToValueAtTime(0, t + delay + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t + delay); osc.stop(t + delay + dur + 0.05);
+    });
+    // Ruído de fogos
+    [0.1, 0.35, 0.55].forEach(delay => {
+      const bufLen = Math.floor(ctx.sampleRate * 0.18);
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource(); noise.buffer = buf;
+      const filt = ctx.createBiquadFilter(); filt.type = 'bandpass';
+      filt.frequency.value = 800 + Math.random() * 1200; filt.Q.value = 0.5;
+      const gn = ctx.createGain();
+      gn.gain.setValueAtTime(0.35, t + delay);
+      gn.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.18);
+      noise.connect(filt); filt.connect(gn); gn.connect(ctx.destination);
+      noise.start(t + delay); noise.stop(t + delay + 0.22);
+    });
+  } catch (_) {}
+}
+
+function tocarSomDerrota() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    // Sequência descendente triste
+    [[392.0, 0.00, 0.18], [349.2, 0.19, 0.18], [293.7, 0.38, 0.22], [246.9, 0.60, 0.5]].forEach(([freq, delay, dur]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.20, t + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + delay + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t + delay); osc.stop(t + delay + dur + 0.05);
+    });
+  } catch (_) {}
+}
+
+function tocarSomEmpate() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    [[440, 0.00, 0.2], [440, 0.22, 0.2], [370, 0.44, 0.4]].forEach(([freq, delay, dur]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, t + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + delay + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t + delay); osc.stop(t + delay + dur + 0.05);
+    });
+  } catch (_) {}
+}
+
+// ── APLICAR RESULTADO VIA RPC ──────────────────────────────
+// A RPC aplicar_resultado_duelo no Supabase é SECURITY DEFINER,
+// transacional e idempotente — marca stats_applied=true na primeira
+// chamada; chamadas subsequentes são no-op. Elimina race conditions
+// e problemas de RLS ao tentar atualizar stats do adversário.
+async function atualizarDueloStats(duel) {
+  try {
+    const { error } = await supabase.rpc('aplicar_resultado_duelo', {
+      p_duelo_id: duel.id
+    });
+    if (error) {
+      console.error('[duelo_stats] erro ao aplicar resultado via RPC:', error);
+      return;
+    }
+
+    // Badges: chamar apenas após RPC confirmar stats gravados
+    const uids = [duel.winner_uid, duel.loser_uid].filter(Boolean);
+    // Em empate, usa player1/player2
+    if (!duel.winner_uid) {
+      uids.push(duel.player1_uid, duel.player2_uid);
+    }
+    const uidsUnicos = [...new Set(uids.filter(Boolean))];
+    for (const uid of uidsUnicos) {
+      try { await verificarBadgesDuelo(uid); } catch (e) { console.warn('[duel] badge check erro:', e); }
+    }
+  } catch (e) {
+    console.warn('[duel] atualizarDueloStats erro:', e);
+  }
+}
+
+async function incrementarDesafiosEnviados(uid) {
+  if (!uid) return;
+  try {
+    const { data: userRow } = await supabase.from('users').select('name, photoURL, photourl').eq('uid', uid).single();
+    const nome = userRow?.name || 'Herói';
+    const foto = userRow?.photoURL || userRow?.photourl || '';
+
+    // Upsert: cria linha se não existir, incrementa se já existir
+    // O incremento de desafios_enviados não pode ser atômico via upsert puro no JS,
+    // mas a trava é mínima (convites, não vitórias) — usamos select+update com guard
+    const { data: atual } = await supabase.from('duelo_stats').select('desafios_enviados').eq('uid', uid).maybeSingle();
+
+    if (!atual) {
+      await supabase.from('duelo_stats').insert({
+        uid, nome_usuario: nome, foto_usuario: foto,
+        vitorias: 0, derrotas: 0, empates: 0, duelos_total: 0,
+        desafios_enviados: 1,
+        sequencia_vitorias: 0, maior_sequencia_vitorias: 0,
+        pontos_vitoria: 0, updatedat: new Date().toISOString()
+      });
+    } else {
+      await supabase.from('duelo_stats').update({
+        nome_usuario: nome, foto_usuario: foto,
+        desafios_enviados: (atual.desafios_enviados || 0) + 1,
+        updatedat: new Date().toISOString()
+      }).eq('uid', uid);
+    }
+    // Verificar badges de desafios (lock por uid já protege concorrência local)
+    try { await verificarBadgesDuelo(uid); } catch (e) {}
+  } catch (e) {
+    console.warn('[duel] incrementarDesafiosEnviados erro:', e);
+  }
+}

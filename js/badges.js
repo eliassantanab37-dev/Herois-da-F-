@@ -114,7 +114,46 @@ for (const chave of LIVROS_SISTEMA) {
     };
 }
 
-export const BADGES = { ...BADGES_BASE, ...BADGES_LIVROS };
+// ── TROFÉUS DE DUELO ──────────────────────────────────────
+const BADGES_DUELO = {
+    // Vitórias totais
+    duelo_primeira_vitoria:   { nome: 'Primeira Vitória',      icone: '🥇', descricao: '1 vitória em duelo',              pontos: 100,  categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 1 },
+    duelo_guerreiro_init:     { nome: 'Guerreiro Iniciante',   icone: '🛡️', descricao: '5 vitórias em duelo',             pontos: 200,  categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 5 },
+    duelo_lutador_fiel:       { nome: 'Lutador Fiel',          icone: '⚔️', descricao: '10 vitórias em duelo',            pontos: 500,  categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 10 },
+    duelo_combatente_sagrado: { nome: 'Combatente Sagrado',    icone: '🗡️', descricao: '25 vitórias em duelo',            pontos: 800,  categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 25 },
+    duelo_soldado_cristo:     { nome: 'Soldado de Cristo',     icone: '🏹', descricao: '50 vitórias em duelo',            pontos: 1200, categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 50 },
+    duelo_campeao_arena:      { nome: 'Campeão da Arena',      icone: '🏆', descricao: '100 vitórias em duelo',           pontos: 2000, categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 100 },
+    duelo_senhor_batalhas:    { nome: 'Senhor das Batalhas',   icone: '👑', descricao: '200 vitórias em duelo',           pontos: 4000, categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 200 },
+    duelo_lenda_viva:         { nome: 'Lenda Viva',            icone: '🔥', descricao: '300 vitórias em duelo',           pontos: 6000, categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 300 },
+    duelo_mestre_supremo:     { nome: 'Mestre Supremo',        icone: '⚡', descricao: '400 vitórias em duelo',           pontos: 8000, categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 400 },
+    duelo_heroi_imortal:      { nome: 'Herói Imortal',         icone: '🌟', descricao: '500 vitórias em duelo',           pontos: 10000,categoria: 'duelo', condicao: (s) => (s.duelo_vitorias || 0) >= 500 },
+    // Sequência de vitórias
+    duelo_embalo_divino:      { nome: 'Embalo Divino',         icone: '🔥', descricao: '3 vitórias seguidas',             pontos: 200,  categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 3 },
+    duelo_seq_sagrada:        { nome: 'Sequência Sagrada',     icone: '🔥', descricao: '5 vitórias seguidas',             pontos: 500,  categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 5 },
+    duelo_invencivel:         { nome: 'Invencível',            icone: '🔥', descricao: '10 vitórias seguidas',            pontos: 1000, categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 10 },
+    duelo_dominador:          { nome: 'Dominador',             icone: '⚡', descricao: '15 vitórias seguidas',            pontos: 1500, categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 15 },
+    duelo_imparavel:          { nome: 'Imparável',             icone: '🩸', descricao: '20 vitórias seguidas',            pontos: 2500, categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 20 },
+    duelo_tempestade_fe:      { nome: 'Tempestade de Fé',      icone: '🌪️', descricao: '30 vitórias seguidas',            pontos: 4000, categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 30 },
+    duelo_rei_invicto:        { nome: 'Rei Invicto',           icone: '👑', descricao: '50 vitórias seguidas',            pontos: 7000, categoria: 'duelo', condicao: (s) => (s.duelo_maior_seq || 0) >= 50 },
+    // Desafios enviados
+    duelo_desafiante:         { nome: 'Desafiante',            icone: '📩', descricao: '5 desafios enviados',             pontos: 200,  categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 5 },
+    duelo_guerreiro_ativo:    { nome: 'Guerreiro Ativo',       icone: '📨', descricao: '10 desafios enviados',            pontos: 400,  categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 10 },
+    duelo_gladiador:          { nome: 'Gladiador',             icone: '📬', descricao: '25 desafios enviados',            pontos: 800,  categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 25 },
+    duelo_invocador:          { nome: 'Invocador de Duelo',    icone: '⚔️', descricao: '50 desafios enviados',            pontos: 1200, categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 50 },
+    duelo_senhor_desafios:    { nome: 'Senhor dos Desafios',   icone: '🏹', descricao: '100 desafios enviados',           pontos: 2000, categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 100 },
+    duelo_dominador_social:   { nome: 'Dominador Social',      icone: '🔥', descricao: '200 desafios enviados',           pontos: 4000, categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 200 },
+    duelo_rei_desafios:       { nome: 'Rei dos Desafios',      icone: '👑', descricao: '500 desafios enviados',           pontos: 8000, categoria: 'duelo', condicao: (s) => (s.duelo_desafios || 0) >= 500 },
+    // Total de partidas
+    duelo_iniciante_arena:    { nome: 'Iniciante da Arena',    icone: '🎮', descricao: '5 partidas de duelo',             pontos: 100,  categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 5 },
+    duelo_jogador_ativo:      { nome: 'Jogador Ativo',         icone: '🎮', descricao: '10 partidas de duelo',            pontos: 200,  categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 10 },
+    duelo_competidor:         { nome: 'Competidor',            icone: '🎮', descricao: '25 partidas de duelo',            pontos: 400,  categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 25 },
+    duelo_veterano:           { nome: 'Veterano',              icone: '🎮', descricao: '50 partidas de duelo',            pontos: 800,  categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 50 },
+    duelo_guerreiro_exp:      { nome: 'Guerreiro Experiente',  icone: '🎮', descricao: '100 partidas de duelo',           pontos: 1500, categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 100 },
+    duelo_mestre_arena:       { nome: 'Mestre da Arena',       icone: '🎮', descricao: '200 partidas de duelo',           pontos: 3000, categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 200 },
+    duelo_lenda_arena:        { nome: 'Lenda da Arena',        icone: '🎮', descricao: '500 partidas de duelo',           pontos: 7000, categoria: 'duelo', condicao: (s) => (s.duelo_total || 0) >= 500 },
+};
+
+export const BADGES = { ...BADGES_BASE, ...BADGES_LIVROS, ...BADGES_DUELO };
 
 // ── EXP E LEVEL ────────────────────────────────────────────
 export function calcularExpELevel(totalCapLidos) {
@@ -416,6 +455,7 @@ window.mostrarBadges = async function () {
 
     const categorias = {
         especial:   { nome: '✝️ Especial',         badges: [] },
+        duelo:      { nome: '⚔️ Duelos',            badges: [] },
         livros:     { nome: '📕 Livros Completos',  badges: [] },
         iniciacao:  { nome: '🚀 Iniciação',          badges: [] },
         exploracao: { nome: '🗺️ Exploração',         badges: [] },
@@ -493,3 +533,89 @@ if (document.readyState === 'loading') {
 }
 
 console.log('✅ Sistema de Troféus carregado!');
+
+// ── VERIFICAR BADGES DE DUELO ──────────────────────────────
+const _executandoVerificacaoDuelo = new Set();
+
+export async function verificarBadgesDuelo(uid) {
+    if (!uid) return;
+    if (_executandoVerificacaoDuelo.has(uid)) return;
+    _executandoVerificacaoDuelo.add(uid);
+
+    try {
+        const [{ data: userData, error: userErr }, { data: dueloStats, error: statsErr }] = await Promise.all([
+            supabase.from('users').select('badges, points').eq('uid', uid).single(),
+            supabase.from('duelo_stats')
+                .select('vitorias, derrotas, duelos_total, desafios_enviados, maior_sequencia_vitorias')
+                .eq('uid', uid)
+                .maybeSingle()
+        ]);
+
+        if (userErr) { console.warn('[badges] verificarBadgesDuelo userErr:', userErr); return; }
+        if (statsErr) { console.warn('[badges] verificarBadgesDuelo statsErr:', statsErr); return; }
+        if (!dueloStats) return;
+
+        const badgesAtuais = userData?.badges || {};
+
+        const stats = {
+            duelo_vitorias:  dueloStats.vitorias || 0,
+            duelo_total:     dueloStats.duelos_total || 0,
+            duelo_desafios:  dueloStats.desafios_enviados || 0,
+            duelo_maior_seq: dueloStats.maior_sequencia_vitorias || 0
+        };
+
+        const novos = Object.entries(BADGES_DUELO).filter(([key, badge]) => !badgesAtuais[key] && badge.condicao(stats));
+        if (novos.length === 0) return;
+
+        // Monta novo objeto de badges
+        const novosBadges = { ...badgesAtuais };
+        for (const [key] of novos) {
+            novosBadges[key] = { desbloqueado: true, data: Date.now() };
+        }
+
+        // PASSO 1: salvar badges ANTES de somar pontos — evita pontos sem badge
+        const { error: badgeErr } = await supabase.from('users')
+            .update({ badges: novosBadges })
+            .eq('uid', uid);
+        if (badgeErr) { console.error('[badges] erro ao salvar badges:', badgeErr); return; }
+
+        // PASSO 2: reler pontos atuais (evita usar valor stale do fetch anterior)
+        const { data: pontosRow, error: ptErr } = await supabase.from('users')
+            .select('points, badges')
+            .eq('uid', uid)
+            .single();
+        if (ptErr) { console.warn('[badges] erro ao reler pontos:', ptErr); return; }
+
+        // PASSO 3: confirmar que as badges ainda não foram dadas por outro processo
+        const badgesConfirmados = pontosRow?.badges || {};
+        const aindaNovos = novos.filter(([key]) => badgesConfirmados[key]);
+        if (aindaNovos.length === 0) return; // outro processo já deu estes badges
+
+        const totalPontos = aindaNovos.reduce((acc, [, b]) => acc + b.pontos, 0);
+        if (totalPontos <= 0) return;
+
+        const pontosAtualizados = (pontosRow?.points || 0) + totalPontos;
+        const agoraIso = new Date().toISOString();
+
+        // PASSO 4: somar pontos apenas após badges confirmados
+        const { error: ptsErr } = await supabase.from('users').update({
+            points: pontosAtualizados,
+            lastUpdate: agoraIso,
+            lastupdate: agoraIso
+        }).eq('uid', uid);
+        if (ptsErr) { console.error('[badges] erro ao atualizar pontos:', ptsErr); return; }
+
+        window.dispatchEvent(new CustomEvent('pontos_atualizados', {
+            detail: { uid, pontos: pontosAtualizados }
+        }));
+
+        for (const [key, badge] of aindaNovos) {
+            try { await exibirTrofeuImediato({ badgeKey: key, ...badge }); } catch (_) {}
+        }
+
+    } catch (e) {
+        console.error('[badges] verificarBadgesDuelo erro:', e);
+    } finally {
+        _executandoVerificacaoDuelo.delete(uid);
+    }
+}

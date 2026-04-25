@@ -108,43 +108,25 @@ function idade(data) {
 }
 
 async function calcularEstatisticasPerfil(uid) {
-  // Busca das tabelas fonte — user_stats pode estar desatualizada/zerada
-  const [resProgresso, resVersos] = await Promise.all([
-    comTimeout(
-      supabase.from('progresso').select('livro, concluido').eq('uid', uid),
-      8000
-    ),
-    comTimeout(
-      supabase.from('versos_lidos').select('id', { count: 'exact', head: true }).eq('uid', uid).eq('lido', true),
-      8000
-    ),
-  ]);
-
-  // Lança erro explícito se RLS ou outra falha bloquear a leitura
-  if (resProgresso.error) {
-    console.error('[calcularEstatisticasPerfil] erro em progresso:', resProgresso.error);
-    throw resProgresso.error;
-  }
-  if (resVersos.error) {
-    console.error('[calcularEstatisticasPerfil] erro em versos_lidos:', resVersos.error);
-    throw resVersos.error;
-  }
-
-  // Livros lidos = livros distintos com ao menos 1 capítulo concluído
-  const progRows = resProgresso.data || [];
-  const livrosComLeitura = new Set(
-    progRows.filter(r => r.concluido).map(r => r.livro).filter(Boolean)
+  // Busca stats de duelo — fonte principal do perfil
+  const { data: dueloStats, error: dueloErr } = await comTimeout(
+    supabase.from('duelo_stats')
+      .select('vitorias, duelos_total, maior_sequencia_vitorias')
+      .eq('uid', uid)
+      .maybeSingle(),
+    8000
   );
-  const livrosLidos = livrosComLeitura.size;
 
-  // Versos lidos = contagem real da tabela versos_lidos
-  // Fallback: se versos_lidos estiver vazia, usa capítulos concluídos de progresso
-  const totalVersos = Number(resVersos.count || 0);
-  const versosLidos = totalVersos > 0
-    ? totalVersos
-    : progRows.filter(r => r.concluido).length;
+  if (dueloErr) {
+    console.error('[calcularEstatisticasPerfil] erro em duelo_stats:', dueloErr);
+    // Não lança — retorna zeros para não travar o perfil
+  }
 
-  return { versosLidos, livrosLidos };
+  return {
+    vitorias:       Number(dueloStats?.vitorias              || 0),
+    duelos_total:   Number(dueloStats?.duelos_total           || 0),
+    maior_sequencia: Number(dueloStats?.maior_sequencia_vitorias || 0),
+  };
 }
 
 function escapeHtml(v) {
@@ -500,10 +482,11 @@ function initBusca(meuUid) {
 
 // ── PERFIL ─────────────────────────────────────────────────
 async function dadosPerfil(uid, viewerId) {
-  const [userResp, relResp, stats] = await Promise.all([
+  const [userResp, relResp, stats, statsJornada] = await Promise.all([
     comTimeout(supabase.from('users').select('*').eq('uid', uid).maybeSingle(), 8000),
     comTimeout(supabase.from('friends').select('id,uid,friend_uid,status').or(`uid.eq.${viewerId},friend_uid.eq.${viewerId}`), 8000),
     calcularEstatisticasPerfil(uid),
+    comTimeout(supabase.from('user_stats_com_nome').select('total_livros_concluidos').eq('uid', uid).maybeSingle(), 8000).catch(() => ({ data: null })),
   ]);
   if (userResp.error) throw userResp.error;
   if (relResp.error) throw relResp.error;
@@ -521,9 +504,11 @@ async function dadosPerfil(uid, viewerId) {
     jaAmigo,
     pendente: euEnvieiPendente,
     pedidoRecebido: eleMeEnviouPendente,
-    versosLidos: stats.versosLidos,
-    livrosLidos: stats.livrosLidos,
-    trofeus
+    vitorias:        stats.vitorias,
+    duelos_total:    stats.duelos_total,
+    maior_sequencia: stats.maior_sequencia,
+    trofeus,
+    livros_concluidos: Number(statsJornada?.data?.total_livros_concluidos) || 0,
   };
 }
 
@@ -565,7 +550,7 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
     if (reqId !== _perfilRequestId) return;
     if (!user) { fecharOverlay(); return; }
 
-    const { userData, jaAmigo, pendente, pedidoRecebido, versosLidos, livrosLidos, trofeus } = await dadosPerfil(uid, user.id);
+    const { userData, jaAmigo, pendente, pedidoRecebido, vitorias, duelos_total, maior_sequencia, trofeus, livros_concluidos } = await dadosPerfil(uid, user.id);
     if (reqId !== _perfilRequestId) return;
     if (!userData) {
       clearTimeout(_timeoutId);
@@ -577,7 +562,7 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
     clearTimeout(_timeoutId);
 
     const me = uid === user.id;
-    const nome = userData.name || 'Herói';
+    const nome = userData.name || userData.nome_usuario || 'Herói';
     const foto = campo(userData, 'photoURL', 'photourl') || avatar(nome);
     const nivel = Number(campo(userData, 'nivel')) || 1;
 
@@ -598,9 +583,10 @@ window.verPerfilDetalhado = async function verPerfilDetalhado(uid) {
         <div class="perfil-points">${Number(userData.points) || 0} pts</div>
         <div class="perfil-grid">
           <div><span>Nível</span><strong>${nivel}</strong></div>
-          <div><span>Versos lidos</span><strong>${versosLidos}</strong></div>
-          <div><span>Livros lidos</span><strong>${livrosLidos}</strong></div>
-          <div><span>Troféus</span><strong>${trofeus}</strong></div>
+          <div><span>📚 Livros</span><strong>${livros_concluidos}</strong></div>
+          <div><span>⚔️ Vitórias</span><strong>${vitorias}</strong></div>
+          <div><span>🏟️ Duelos</span><strong>${duelos_total}</strong></div>
+          <div><span>🔥 Sequência</span><strong>${maior_sequencia}</strong></div>
         </div>
         <div class="perfil-actions" style="margin-bottom:12px;">
           <button id="perfil-badges-btn" class="glass-btn dark">Troféus</button>
