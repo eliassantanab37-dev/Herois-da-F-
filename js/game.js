@@ -469,6 +469,17 @@ async function _carregarRankingDuelos() {
             return;
         }
 
+        // Busca lastUpdate para calcular presença online
+        const dueloUids = stats.map(s => s.uid).filter(Boolean);
+        let dueloPresenceMap = {};
+        if (dueloUids.length > 0) {
+            const { data: presRows } = await supabase
+                .from('users')
+                .select('uid, lastUpdate, lastupdate')
+                .in('uid', dueloUids);
+            (presRows || []).forEach(u => { dueloPresenceMap[u.uid] = u; });
+        }
+
         let html = `<div style="max-width:700px; margin:0 auto;">
             <div style="text-align:center; color:#d4af37; font-family:'Cinzel'; font-size:1.1rem; margin-bottom:16px; letter-spacing:2px;">⚔️ TOP ${stats.length} GUERREIROS</div>`;
 
@@ -476,6 +487,7 @@ async function _carregarRankingDuelos() {
             const isMe = user?.id === s.uid;
             const foto = s.foto_usuario || gerarAvatarPadrao(s.nome_usuario || '');
             const nome = s.nome_usuario ? (s.nome_usuario.length > 14 ? s.nome_usuario.substring(0, 14) + '…' : s.nome_usuario) : 'Herói';
+            const online = _rankingIsOnline(dueloPresenceMap[s.uid] || {});
 
             let rankConteudo;
             if (index === 0) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
@@ -496,8 +508,11 @@ async function _carregarRankingDuelos() {
                         ${rankConteudo}
                     </div>
 
-                    <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid ${index < 3 ? '#d4af37' : '#555'}; object-fit:cover; flex-shrink:0;"
-                         onerror="this.src='${gerarAvatarPadrao(s.nome_usuario || '')}'">
+                    <div style="position:relative; flex-shrink:0;">
+                        <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid ${index < 3 ? '#d4af37' : '#555'}; object-fit:cover; display:block;"
+                             onerror="this.src='${gerarAvatarPadrao(s.nome_usuario || '')}'">
+                        <div class="rank-presence-dot ${online ? 'online' : 'offline'}"></div>
+                    </div>
 
                     <div style="flex:1; text-align:left; min-width:0;">
                         <div style="color:white; font-weight:bold; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -579,9 +594,9 @@ async function _carregarRankingJornadaBiblica() {
         if (uids.length > 0) {
             const { data: users } = await supabase
                 .from('users')
-                .select('uid, photoURL, photourl')
+                .select('uid, photoURL, photourl, lastUpdate, lastupdate')
                 .in('uid', uids);
-            (users || []).forEach(u => { fotoMap[u.uid] = u.photoURL || u.photourl || null; });
+            (users || []).forEach(u => { fotoMap[u.uid] = u; });
         }
 
         let html = `<div style="max-width:700px; margin:0 auto;">
@@ -594,7 +609,9 @@ async function _carregarRankingJornadaBiblica() {
             const versos = Number(s.total_versos_lidos) || 0;
             const nomeRaw = s.nome_usuario || 'Herói';
             const nome = nomeRaw.length > 14 ? nomeRaw.substring(0, 14) + '…' : nomeRaw;
-            const foto = fotoMap[s.uid] || gerarAvatarPadrao(nomeRaw);
+            const _u = fotoMap[s.uid] || {};
+            const foto = _u.photoURL || _u.photourl || gerarAvatarPadrao(nomeRaw);
+            const online = _rankingIsOnline(_u);
 
             let rankConteudo;
             if (index === 0) rankConteudo = `<div class="trofeu-container"><div class="aura-flamejante aura-ouro"></div><div class="trofeu-icone">🏆</div></div>`;
@@ -616,8 +633,11 @@ async function _carregarRankingJornadaBiblica() {
                         ${rankConteudo}
                     </div>
 
-                    <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid ${index < 3 ? '#d4af37' : '#555'}; object-fit:cover; flex-shrink:0;"
-                         onerror="this.src='${gerarAvatarPadrao(nomeRaw)}'">
+                    <div style="position:relative; flex-shrink:0;">
+                        <img src="${foto}" style="width:48px; height:48px; border-radius:50%; border:2px solid ${index < 3 ? '#d4af37' : '#555'}; object-fit:cover; display:block;"
+                             onerror="this.src='${gerarAvatarPadrao(nomeRaw)}'">
+                        <div class="rank-presence-dot ${online ? 'online' : 'offline'}"></div>
+                    </div>
 
                     <div style="flex:1; text-align:left; min-width:0;">
                         <div style="color:white; font-weight:bold; font-size:.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -676,10 +696,22 @@ function _rankingIsOnline(u) {
     const ps = document.createElement('style');
     ps.id = 'ranking-presence-styles';
     ps.textContent = `
-        @keyframes rankPdPulse { 0%,100%{transform:scale(1)}50%{transform:scale(1.18)} }
-        .rank-presence-dot { position:absolute;right:1px;bottom:1px;width:11px;height:11px;border-radius:50%;border:2px solid #111;z-index:3; }
-        .rank-presence-dot.online  { background:#00e676;box-shadow:0 0 8px #00e676,0 0 16px rgba(0,230,118,.5);animation:rankPdPulse 1.8s ease infinite; }
-        .rank-presence-dot.offline { background:#f44336;box-shadow:0 0 8px rgba(244,67,54,.35); }
+        @keyframes rankPdPulse  { 0%,100%{transform:scale(1);opacity:.9} 50%{transform:scale(1.22);opacity:1} }
+        @keyframes rankPdGlass  { 0%,100%{box-shadow:0 0 6px #00e676,0 0 14px rgba(0,230,118,.55),inset 0 1px 0 rgba(255,255,255,.55)} 50%{box-shadow:0 0 14px #00e676,0 0 28px rgba(0,230,118,.8),inset 0 1px 0 rgba(255,255,255,.7)} }
+        .rank-presence-dot {
+            position:absolute;right:0px;bottom:0px;
+            width:13px;height:13px;border-radius:50%;
+            border:2px solid rgba(0,0,0,.7);z-index:3;
+        }
+        .rank-presence-dot.online {
+            background:radial-gradient(circle at 35% 30%,#80ffb0 0%,#00e676 45%,#00a855 100%);
+            box-shadow:0 0 6px #00e676,0 0 14px rgba(0,230,118,.55),inset 0 1px 0 rgba(255,255,255,.55);
+            animation:rankPdPulse 1.8s ease-in-out infinite, rankPdGlass 1.8s ease-in-out infinite;
+        }
+        .rank-presence-dot.offline {
+            background:radial-gradient(circle at 35% 30%,#ff6b6b 0%,#d32f2f 45%,#8b0000 100%);
+            box-shadow:0 0 5px rgba(200,0,0,.5),0 0 10px rgba(139,0,0,.35),inset 0 1px 0 rgba(255,150,150,.3);
+        }
     `;
     document.head.appendChild(ps);
 })();
