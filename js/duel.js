@@ -476,7 +476,7 @@ const QUESTION_BANK = [
   {id:'q541',p:'Qual o nome do filho mais novo de Jacó?',a:['José','Benjamim','Judá','Levi'],c:1},
   {id:'q542',p:'O que a pomba trouxe a Noé na arca?',a:['Um ramo de oliveira','Uma uva','Um peixe','Nada'],c:0},
   {id:'q543',p:'Quem era o sogro de Moisés?',a:['Labão','Jetro','Potifar','Arão'],c:1},
-  {id:'q544',p:'Qual apóstolo era médico?',a:['Mateus','João','Lucas','Marcos'],c:2},
+  {id:'q544',p:'Qual dicípulo era médico?',a:['Mateus','João','Lucas','Marcos'],c:2},
   {id:'q545',p:'Quem ungiu Davi como rei?',a:['Saul','Samuel','Natã','Gad'],c:1},
   {id:'q546',p:'Quantas pedras Davi pegou no ribeiro?',a:['1','3','5','7'],c:2},
   {id:'q547',p:'Quem foi a bisavó de Davi?',a:['Rute','Ester','Sara','Débora'],c:0},
