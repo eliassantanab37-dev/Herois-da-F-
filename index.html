@@ -457,6 +457,7 @@
           <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button>
           <a href="sobre.html" id="btn-sobre-app" class="auth-special-btn sobre-glass-btn"><span>ℹ️ SOBRE O APP</span></a>
           <button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhe o App!</span></button>
+          <button type="button" id="btn-instalar-app-login" class="auth-special-btn share-compact-glass" style="grid-column:1/-1;"><span>📲 Baixe o App!</span></button>
         </div>
 
         <div class="auth-login-footer-ad">
@@ -881,7 +882,39 @@
       await atualizarMenuUsuario(uid);
     });
 
+    let promptInstalacao = null;
+    function atualizarBotaoInstalar() {
+      const btn = document.getElementById('btn-instalar-app-login');
+      if (!btn) return;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.title = promptInstalacao ? 'Instalar app' : 'Abrir instruções de instalação';
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      promptInstalacao = event;
+      atualizarBotaoInstalar();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      promptInstalacao = null;
+      atualizarBotaoInstalar();
+    });
+
     document.addEventListener('click', async (event) => {
+      const btnInstalar = event.target.closest('#btn-instalar-app-login');
+      if (btnInstalar) {
+        if (promptInstalacao) {
+          promptInstalacao.prompt();
+          try { await promptInstalacao.userChoice; } catch {}
+          promptInstalacao = null;
+          atualizarBotaoInstalar();
+        } else {
+          alert('Para instalar: abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.');
+        }
+      }
+
       const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
       if (btnCompartilhar) {
         const payload = { title: 'Heróis da Fé', text: 'Venha jogar Heróis da Fé comigo!', url: window.location.href };
@@ -894,6 +927,7 @@
       }
     });
 
+    atualizarBotaoInstalar();
 
   </script>
 </body>
