@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Sobre o Heróis da Fé - Plataforma gamificada de leitura da Bíblia">
+  <meta name="theme-color" content="#d4af37">
+  <title>Sobre o App — Heróis da Fé</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0a0a0a;
+      color: #f0e6c8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .page-header {
+      width: 100%;
+      background: linear-gradient(180deg, #111 0%, #0a0a0a 100%);
+      border-bottom: 1px solid rgba(212,175,55,0.3);
+      padding: 28px 20px 22px;
+      text-align: center;
+    }
+
+    .page-header .logo {
+      font-family: 'Cinzel', serif;
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: #d4af37;
+      letter-spacing: 2px;
+      text-shadow: 0 0 18px rgba(212,175,55,0.5);
+    }
+
+    .page-header .subtitle {
+      font-size: 0.82rem;
+      color: rgba(240,230,200,0.6);
+      margin-top: 4px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+      padding: 30px 20px 60px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+      border: 1px solid rgba(212,175,55,0.22);
+      border-radius: 20px;
+      padding: 28px 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.1rem;
+      color: #d4af37;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card p {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: rgba(240,230,200,0.88);
+      margin-bottom: 10px;
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .feature-item {
+      background: rgba(212,175,55,0.08);
+      border: 1px solid rgba(212,175,55,0.18);
+      border-radius: 14px;
+      padding: 14px 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: rgba(240,230,200,0.9);
+      line-height: 1.4;
+    }
+
+    .feature-item .icon {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .notice-box {
+      background: rgba(212,175,55,0.07);
+      border-left: 3px solid #d4af37;
+      border-radius: 0 12px 12px 0;
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      color: rgba(240,230,200,0.85);
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+
+    .notice-box strong { color: #d4af37; }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-primary {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      text-align: center;
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-decoration: none;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, rgba(103,76,7,0.96), rgba(212,175,55,0.82) 36%, rgba(255,237,164,0.98) 50%, rgba(212,175,55,0.82) 64%, rgba(103,76,7,0.96));
+      color: #170f00;
+      box-shadow: 0 8px 24px rgba(212,175,55,0.28);
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-primary:active { transform: scale(0.98); opacity: 0.92; }
+
+    .btn-secondary {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      text-align: center;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      border-radius: 14px;
+      border: 1px solid rgba(212,175,55,0.35);
+      cursor: pointer;
+      background: rgba(255,255,255,0.04);
+      color: #d4af37;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-secondary:hover { background: rgba(212,175,55,0.1); }
+    .btn-secondary:active { transform: scale(0.98); }
+
+    .footer {
+      width: 100%;
+      text-align: center;
+      padding: 20px;
+      font-size: 0.78rem;
+      color: rgba(240,230,200,0.35);
+    }
+
+    @media (max-width: 480px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .page-header .logo { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="logo">⚜️ HERÓIS DA FÉ</div>
+    <div class="subtitle">Sua jornada espiritual gamificada</div>
+  </div>
+
+  <div class="container">
+
+    <div class="card">
+      <h2>📖 O que é o Heróis da Fé?</h2>
+      <p>
+        <strong>Heróis da Fé</strong> é uma plataforma de leitura da Bíblia com gamificação. Nossa missão é tornar a leitura bíblica uma jornada divertida, progressiva e social.
+      </p>
+      <p>
+        Leia capítulos, ganhe pontos, suba de nível e dispute com amigos em um ambiente de fé e conhecimento.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>🎮 O que você pode fazer</h2>
+      <div class="features-grid">
+        <div class="feature-item">
+          <span class="icon">📖</span>
+          <span>Ler capítulos bíblicos completos</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">⭐</span>
+          <span>Ganhar pontos por cada leitura</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">🏆</span>
+          <span>Subir no ranking global</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">👥</span>
+          <span>Adicionar e acompanhar amigos</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">💬</span>
+          <span>Conversar no chat com a comunidade</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">⚔️</span>
+          <span>Fazer duelos de perguntas bíblicas</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">🎖️</span>
+          <span>Conquistar medalhas e troféus</span>
+        </div>
+        <div class="feature-item">
+          <span class="icon">📊</span>
+          <span>Acompanhar seu progresso de leitura</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ℹ️ Informações Importantes</h2>
+      <div class="notice-box">
+        <strong>Cadastro necessário:</strong> Para utilizar todas as funcionalidades do app — leitura, pontos, ranking, chat e duelos — é necessário criar uma conta gratuita com nome, e-mail e senha.
+      </div>
+    
+      <div class="notice-box" style="margin-top:10px;">
+        <strong>Público:</strong> O app é voltado para fins educacionais e religiosos. O conteúdo é baseado na Bíblia Sagrada.
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <a href="index.html" class="btn-primary">⚔️ ENTRAR NO APP</a>
+      <a href="privacidade.html" class="btn-secondary">🔒 Política de Privacidade</a>
+      <a href="termos.html" class="btn-secondary">📋 Termos de Uso</a>
+      <a href="excluir-conta.html" class="btn-secondary">🗑️ Excluir Minha Conta</a>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    © 2026 Heróis da Fé · Todos os direitos reservados
+  </div>
+
+</body>
+</html>

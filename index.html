@@ -139,6 +139,215 @@
 
     @keyframes shineInstall{ from{ left:-70%; } to{ left:130%; } }
 
+    /* ── Botão SOBRE O APP — cinza 3D, brilho branco animado ── */
+    .sobre-glass-btn {
+      color: #ffffff !important;
+      text-decoration: none;
+      background: linear-gradient(160deg,
+        rgba(100,100,110,0.95) 0%,
+        rgba(70,70,78,0.98)  40%,
+        rgba(55,55,62,0.99)  100%);
+      border: 1px solid rgba(255,255,255,0.22) !important;
+      box-shadow:
+        0 8px 20px rgba(0,0,0,0.45),
+        0 2px 0 rgba(255,255,255,0.12) inset,
+        0 -4px 0 rgba(0,0,0,0.35) inset;
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+      transform: translateY(0);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .sobre-glass-btn > span {
+      position: relative;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    /* brilho branco deslizando para a direita */
+    .sobre-glass-btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -75%;
+      width: 45%; height: 100%;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(255,255,255,0.28),
+        transparent);
+      transform: skewX(-20deg);
+      animation: shineSobre 2.6s linear infinite;
+    }
+    /* reflexo superior 3D */
+    .sobre-glass-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0.14) 0%,
+        transparent 45%,
+        rgba(255,255,255,0.04) 100%);
+      pointer-events: none;
+    }
+    @keyframes shineSobre { from{ left:-75%; } to{ left:130%; } }
+    .sobre-glass-btn:active {
+      transform: translateY(2px);
+      box-shadow:
+        0 4px 10px rgba(0,0,0,0.45),
+        0 1px 0 rgba(255,255,255,0.10) inset,
+        0 -2px 0 rgba(0,0,0,0.30) inset;
+    }
+
+    /* ═══ TELA RECUPERAR SENHA ═══ */
+    #forgot-password-box {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      padding: 4px 0 2px;
+      animation: fadeUpAuth .28s ease;
+    }
+    @keyframes fadeUpAuth {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .forgot-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #d4af37;
+      letter-spacing: 2px;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+    .forgot-desc {
+      font-family: 'Poppins', sans-serif;
+      font-size: .83rem;
+      color: rgba(240,230,200,0.6);
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+    #forgot-password-message {
+      font-family: 'Poppins', sans-serif;
+      font-size: .84rem;
+      text-align: center;
+      min-height: 1.3em;
+      color: #cdbf8a;
+      transition: color .3s, opacity .3s;
+      opacity: 0;
+    }
+    #forgot-password-message.visible {
+      opacity: 1;
+    }
+    #forgot-password-message.msg-sucesso { color: #9ff0b4; }
+    #forgot-password-message.msg-erro    { color: #ff8f8f; }
+    /* ═══ FIM RECUPERAR SENHA ═══ */
+
+    /* ═══ LOADER DE INICIALIZAÇÃO ═══ */
+    #app-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: radial-gradient(ellipse at 50% 30%, #111108 0%, #0a0a08 55%, #000 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      transition: opacity 0.55s ease, visibility 0.55s ease;
+    }
+
+    #app-loader.loader-oculto {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 0 32px;
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .loader-logo {
+      font-size: 4rem;
+      line-height: 1;
+      margin-bottom: 14px;
+      filter: drop-shadow(0 0 22px rgba(212,175,55,0.55));
+      animation: loaderPulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes loaderPulse {
+      0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 18px rgba(212,175,55,0.45)); }
+      50%       { transform: scale(1.06); filter: drop-shadow(0 0 32px rgba(212,175,55,0.75)); }
+    }
+
+    .loader-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.65rem;
+      font-weight: 900;
+      color: #d4af37;
+      letter-spacing: 3px;
+      text-shadow: 0 0 28px rgba(212,175,55,0.5);
+      margin-bottom: 10px;
+    }
+
+    .loader-subtitle {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.88rem;
+      color: rgba(240,230,200,0.6);
+      letter-spacing: 0.5px;
+      margin-bottom: 28px;
+      min-height: 1.4em;
+      text-align: center;
+      transition: color 0.3s;
+    }
+
+    .loader-subtitle.loader-erro {
+      color: #ff6b6b;
+    }
+
+    .loader-bar-wrap {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+    }
+
+    .loader-bar-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .loader-bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #39d67e 0%, #5eeea0 50%, #39d67e 100%);
+      box-shadow: 0 0 10px rgba(57,214,126,0.55);
+      transition: width 0.45s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .loader-percent {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.75rem;
+      color: rgba(57,214,126,0.75);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    /* ═══ FIM LOADER ═══ */
+
     @media (max-width: 700px){
       .auth-login-actions-grid{
         gap:10px;
@@ -173,6 +382,22 @@
 
 </head>
 <body>
+  <!-- ═══ TELA DE CARREGAMENTO INICIAL ═══ -->
+  <div id="app-loader" aria-live="polite" aria-label="Carregando o app">
+    <div class="loader-inner">
+      <div class="loader-logo">⚜️</div>
+      <div class="loader-title">HERÓIS DA FÉ</div>
+      <div class="loader-subtitle" id="loader-msg">Carregando sua jornada...</div>
+      <div class="loader-bar-wrap">
+        <div class="loader-bar-track">
+          <div class="loader-bar-fill" id="loader-bar-fill"></div>
+        </div>
+        <div class="loader-percent" id="loader-percent">0%</div>
+      </div>
+    </div>
+  </div>
+  <!-- ═══ FIM LOADER ═══ -->
+
   <aside id="side-menu" class="side-menu" style="display:none;">
     <button id="close-menu" class="close-btn">×</button>
     <section class="profile-section">
@@ -230,7 +455,7 @@
         <div class="auth-login-actions-grid">
           <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR</button>
           <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button>
-          <button type="button" id="btn-instalar-app-login" class="auth-special-btn install-gold-glass"><span>📲 Baixe o App!</span></button>
+          <a href="sobre.html" id="btn-sobre-app" class="auth-special-btn sobre-glass-btn"><span>ℹ️ SOBRE O APP</span></a>
           <button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhe o App!</span></button>
         </div>
 
@@ -246,6 +471,21 @@
           </div>
           <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
+
+        <!-- ── LINKS OBRIGATÓRIOS PLAY STORE ── -->
+        <nav style="
+          display:flex;
+          flex-wrap:wrap;
+          justify-content:center;
+          gap:6px 14px;
+          margin-top:16px;
+          padding-bottom:6px;
+        " aria-label="Links legais">
+          <a href="privacidade.html" style="color:rgba(212,175,55,0.6);font-family:'Poppins',sans-serif;font-size:.76rem;text-decoration:none;letter-spacing:.3px;" target="_blank" rel="noopener">🔒 Política de Privacidade</a>
+          <a href="termos.html"      style="color:rgba(212,175,55,0.6);font-family:'Poppins',sans-serif;font-size:.76rem;text-decoration:none;letter-spacing:.3px;" target="_blank" rel="noopener">📄 Termos de Uso</a>
+          <a href="excluir-conta.html" style="color:rgba(180,80,80,0.65);font-family:'Poppins',sans-serif;font-size:.76rem;text-decoration:none;letter-spacing:.3px;" target="_blank" rel="noopener">🗑️ Excluir Conta</a>
+        </nav>
+
       </form>
       <form id="form-cadastrar" class="auth-form" style="display:none;">
         <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12" autocomplete="name"><small class="auth-field-tip">Máximo de 12 caracteres</small>
@@ -261,12 +501,106 @@
         <div class="auth-action-row"><button type="button" id="btn-resetar-senha" class="auth-special-btn gold-shine">SALVAR NOVA SENHA</button></div>
         <div class="auth-action-row secondary"><button type="button" id="btn-cancelar-reset" class="auth-special-btn gray-glass">Cancelar</button></div>
       </div>
+
+      <!-- ═══ TELA SOLICITAR RECUPERAÇÃO DE SENHA ═══ -->
+      <div id="forgot-password-box" class="auth-form">
+        <div class="forgot-title">🔑 Recuperar Senha</div>
+        <p class="forgot-desc">Digite seu e-mail cadastrado para receber o link de recuperação.</p>
+        <input type="email" id="forgot-email" placeholder="Seu E-mail" autocomplete="email" style="border-radius:20px!important;">
+        <div class="auth-action-row">
+          <button type="button" id="btn-enviar-link-recuperacao" class="btn-mission gold-shine" style="width:100%;border-radius:20px!important;">ENVIAR LINK</button>
+        </div>
+        <div class="auth-action-row secondary">
+          <button type="button" id="btn-voltar-login-recuperacao" class="auth-special-btn gray-glass" style="width:100%;border-radius:20px!important;">← Voltar</button>
+        </div>
+        <div id="forgot-password-message"></div>
+      </div>
+      <!-- ═══ FIM RECUPERAR SENHA ═══ -->
     </section>
 
     <section id="reading-view" class="reading-container" style="display:none;"><div id="bible-text"></div></section>
   </main>
 
   <input type="file" id="foto-input" accept="image/*" style="display:none;">
+
+  <!-- Controle do loader — deve ser carregado antes de qualquer módulo -->
+  <script>
+    (function () {
+      const loaderEl   = document.getElementById('app-loader');
+      const barFill    = document.getElementById('loader-bar-fill');
+      const percentEl  = document.getElementById('loader-percent');
+      const msgEl      = document.getElementById('loader-msg');
+      let _progresso   = 0;
+      let _terminado   = false;
+      let _autoTimer   = null;
+
+      // Avança automaticamente de 0 → 85% durante o carregamento
+      function _iniciarAuto() {
+        const etapas = [
+          { alvo: 15,  delay: 200 },
+          { alvo: 35,  delay: 700 },
+          { alvo: 55,  delay: 1400 },
+          { alvo: 72,  delay: 2200 },
+          { alvo: 85,  delay: 3200 },
+        ];
+        etapas.forEach(({ alvo, delay }) => {
+          const t = setTimeout(() => {
+            if (!_terminado && _progresso < alvo) _setProgress(alvo);
+          }, delay);
+          (_autoTimer = _autoTimer || []).push ? _autoTimer.push(t) : (_autoTimer = [t]);
+        });
+      }
+
+      function _setProgress(pct) {
+        pct = Math.max(0, Math.min(100, pct));
+        _progresso = pct;
+        if (barFill)   barFill.style.width   = pct + '%';
+        if (percentEl) percentEl.textContent = Math.round(pct) + '%';
+      }
+
+      function _finish() {
+        if (_terminado) return;
+        _terminado = true;
+        _setProgress(100);
+        setTimeout(() => {
+          if (loaderEl) loaderEl.classList.add('loader-oculto');
+          // Remove do DOM após a transição para liberar memória
+          setTimeout(() => loaderEl?.remove(), 700);
+        }, 320);
+      }
+
+      function _erro() {
+        if (msgEl) {
+          msgEl.textContent = 'Verifique sua conexão e tente novamente.';
+          msgEl.classList.add('loader-erro');
+        }
+        _setProgress(_progresso); // Congela onde está
+      }
+
+      // API global usada pelo script de inicialização
+      window.appLoaderSetProgress = _setProgress;
+      window.appLoaderFinish      = _finish;
+      window.appLoaderErro        = _erro;
+
+      // ── SEGURANÇA: se após 6 s o loader ainda não finalizou, encerra sozinho ──
+      const _safetyTimer = setTimeout(() => {
+        if (!_terminado) {
+          console.warn('[Loader] Safety timer disparado — finalizando loader após 6s.');
+          _finish();
+        }
+      }, 6000);
+
+      // Limpa o safety timer quando o finish for chamado normalmente
+      const _finishOriginal = _finish;
+      window.appLoaderFinish = function () {
+        clearTimeout(_safetyTimer);
+        _finishOriginal();
+      };
+
+      // Inicia avanço automático imediatamente
+      _iniciarAuto();
+    })();
+  </script>
 
   <script type="module" src="js/config.js"></script>
   <script type="module" src="js/auth.js"></script>
@@ -326,6 +660,8 @@
       document.body.classList.remove('menu-open');
       if (authContainer) authContainer.style.display = 'block';
       if (readingView) readingView.style.display = 'none';
+      // Garante que o loader some quando a tela de login aparecer
+      window.appLoaderFinish?.();
     }
 
     function mostrarJogo() {
@@ -391,12 +727,15 @@
       currentUid = user.id;
 
       try {
+        window.appLoaderSetProgress?.(88);
         limparSobreposicoesUI();
         mostrarJogo();
         await iniciarListenerUsuario(user);
-        await iniciarSocial(user); // FIX-CRÍTICO: await obrigatório aqui
+        window.appLoaderSetProgress?.(92);
+        await iniciarSocial(user);
         iniciarMonitorChat(user);
         verificarAberturaPorPush();
+        window.appLoaderSetProgress?.(96);
         await atualizarMenuUsuario(user.id);
         try { await window.carregarListaLivros?.(); } catch (e) { console.error(e); }
 
@@ -450,9 +789,26 @@
 
         history.replaceState({ page: 'jogo' }, '');
         appPronto = true;
+        window.appLoaderFinish?.();
       } finally {
         inicializandoUid = null;
+        // ── SEGURANÇA: garante que o loader sempre finalize, mesmo com erro ──
+        if (!appPronto) {
+          console.warn('[inicializarUsuario] Finalizando loader por segurança (appPronto=false).');
+          try { mostrarTelaLogin(); } catch {}
+          window.appLoaderFinish?.();
+        }
       }
+    }
+
+    // ── Helper: getSession com timeout para não bloquear o loader ──────────
+    async function getSessionComTimeout(ms = 8000) {
+      return Promise.race([
+        supabase.auth.getSession(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('getSession timeout')), ms)
+        ),
+      ]);
     }
 
     // Sessão que chega DURANTE o bootstrap fica guardada e é processada logo após
@@ -474,29 +830,43 @@
       }
     });
 
-    const { data: { session } } = await supabase.auth.getSession();
-    // Não inicializa o jogo se recovery de senha estiver ativo
-    if (!window._duelRecoveryMode) {
-      if (session?.user) {
-        await inicializarUsuario(session.user);
-      } else {
-        await destruirEstadoUsuario();
-      }
-    } else {
-      // Recovery ativo: garante que a tela de login fique visível (não o jogo)
-      mostrarTelaLogin();
-    }
-    bootstrapSessaoConcluido = true;
+    // ── Bootstrap com proteção global contra erros ──────────────────────────
+    try {
+      const { data: { session } } = await getSessionComTimeout(8000).catch((e) => {
+        console.error('[Bootstrap] getSession falhou ou expirou:', e);
+        return { data: { session: null } };
+      });
 
-    // Processa sessão que chegou enquanto o bootstrap ainda corria
-    if (sessaoPendente !== null && !window._duelRecoveryMode) {
-      const { user } = sessaoPendente;
-      sessaoPendente = null;
-      if (user) {
-        await inicializarUsuario(user);
+      // Não inicializa o jogo se recovery de senha estiver ativo
+      if (!window._duelRecoveryMode) {
+        if (session?.user) {
+          await inicializarUsuario(session.user);
+        } else {
+          await destruirEstadoUsuario();
+        }
       } else {
-        await destruirEstadoUsuario();
+        // Recovery ativo: garante que a tela de login fique visível (não o jogo)
+        mostrarTelaLogin();
       }
+      bootstrapSessaoConcluido = true;
+
+      // Processa sessão que chegou enquanto o bootstrap ainda corria
+      if (sessaoPendente !== null && !window._duelRecoveryMode) {
+        const { user } = sessaoPendente;
+        sessaoPendente = null;
+        if (user) {
+          await inicializarUsuario(user);
+        } else {
+          await destruirEstadoUsuario();
+        }
+      }
+    } catch (bootstrapErr) {
+      // ── SEGURANÇA: qualquer erro não capturado no bootstrap exibe login e
+      // finaliza o loader para que o app nunca fique travado em 85%. ──────
+      console.error('[Bootstrap] Erro crítico não capturado:', bootstrapErr);
+      try { mostrarTelaLogin(); } catch {}
+      window.appLoaderFinish?.();
+      bootstrapSessaoConcluido = true;
     }
 
     window.addEventListener('exp_atualizada', (e) => {
@@ -511,39 +881,7 @@
       await atualizarMenuUsuario(uid);
     });
 
-    let promptInstalacao = null;
-    function atualizarBotaoInstalar() {
-      const btn = document.getElementById('btn-instalar-app-login');
-      if (!btn) return;
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.title = promptInstalacao ? 'Instalar app' : 'Abrir instruções de instalação';
-    }
-
-    window.addEventListener('beforeinstallprompt', (event) => {
-      event.preventDefault();
-      promptInstalacao = event;
-      atualizarBotaoInstalar();
-    });
-
-    window.addEventListener('appinstalled', () => {
-      promptInstalacao = null;
-      atualizarBotaoInstalar();
-    });
-
     document.addEventListener('click', async (event) => {
-      const btnInstalar = event.target.closest('#btn-instalar-app-login');
-      if (btnInstalar) {
-        if (promptInstalacao) {
-          promptInstalacao.prompt();
-          try { await promptInstalacao.userChoice; } catch {}
-          promptInstalacao = null;
-          atualizarBotaoInstalar();
-        } else {
-          alert('Para instalar: abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.');
-        }
-      }
-
       const btnCompartilhar = event.target.closest('#btn-compartilhar-app');
       if (btnCompartilhar) {
         const payload = { title: 'Heróis da Fé', text: 'Venha jogar Heróis da Fé comigo!', url: window.location.href };
@@ -555,8 +893,6 @@
         }
       }
     });
-
-    atualizarBotaoInstalar();
 
 
   </script>
