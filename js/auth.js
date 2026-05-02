@@ -268,7 +268,7 @@ btnEnviarLink?.addEventListener('click', async () => {
   _setForgotMsg('');
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}${window.location.pathname}`
+      redirectTo: 'https://www.heroisdafe.app.br/'
     });
     if (error) throw error;
     _setForgotMsg('✅ Link de recuperação enviado para seu e-mail.', 'sucesso');
