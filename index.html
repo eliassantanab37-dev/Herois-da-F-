@@ -348,6 +348,283 @@
     }
     /* ═══ FIM LOADER ═══ */
 
+
+
+    /* ═══ CONTEÚDO PÚBLICO NA TELA INICIAL — ADSENSE ═══ */
+    .auth-public-content{
+      margin-top:18px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .public-hero-box,
+    .public-info-card,
+    .public-feature-card,
+    .public-dev-card{
+      border:1px solid rgba(212,175,55,0.22);
+      background:linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015));
+      border-radius:22px;
+      padding:18px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 12px 30px rgba(0,0,0,0.18);
+    }
+
+    .public-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(212,175,55,0.32);
+      background:rgba(212,175,55,0.08);
+      color:#d4af37;
+      font-size:.72rem;
+      font-weight:800;
+      letter-spacing:.9px;
+      text-transform:uppercase;
+      margin-bottom:10px;
+    }
+
+    .public-title{
+      font-family:'Cinzel', serif;
+      color:#d4af37;
+      font-size:1.18rem;
+      line-height:1.25;
+      letter-spacing:1px;
+      margin:0 0 10px;
+      text-shadow:0 0 18px rgba(212,175,55,0.22);
+    }
+
+    .public-subtitle{
+      color:rgba(240,230,200,0.72);
+      font-size:.86rem;
+      line-height:1.65;
+      margin:0;
+    }
+
+    .public-info-card h2,
+    .public-feature-card h3,
+    .public-dev-card h2{
+      font-family:'Cinzel', serif;
+      color:#d4af37;
+      font-size:1rem;
+      line-height:1.25;
+      letter-spacing:.8px;
+      margin:0 0 10px;
+    }
+
+    .public-info-card p,
+    .public-feature-card p,
+    .public-dev-card p{
+      color:rgba(240,230,200,0.84);
+      font-size:.86rem;
+      line-height:1.75;
+      margin:0 0 10px;
+    }
+
+    .public-info-card p:last-child,
+    .public-feature-card p:last-child,
+    .public-dev-card p:last-child{
+      margin-bottom:0;
+    }
+
+    .public-feature-card > img,
+    .public-screenshot-img{
+      width:100%;
+      display:block;
+      max-height:430px;
+      object-fit:cover;
+      border-bottom:1px solid rgba(212,175,55,0.16);
+      background:#050505;
+    }
+
+    .public-screenshot-placeholder{
+      min-height:190px;
+      margin:12px 0 12px;
+      border-radius:18px;
+      border:1px dashed rgba(212,175,55,0.38);
+      background:
+        radial-gradient(circle at 50% 18%, rgba(212,175,55,0.12), transparent 44%),
+        linear-gradient(180deg, rgba(0,0,0,0.24), rgba(255,255,255,0.018));
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      gap:8px;
+      padding:18px;
+      color:rgba(240,230,200,0.68);
+      overflow:hidden;
+    }
+
+    .public-screenshot-placeholder .placeholder-icon{
+      font-size:2.4rem;
+      filter:drop-shadow(0 0 14px rgba(212,175,55,0.32));
+    }
+
+    .public-screenshot-placeholder strong{
+      color:#d4af37;
+      font-size:.86rem;
+      letter-spacing:.4px;
+    }
+
+    .public-screenshot-placeholder span{
+      font-size:.76rem;
+      line-height:1.5;
+      max-width:290px;
+    }
+
+    .public-note-list{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:10px;
+      margin-top:12px;
+    }
+
+    .public-note-item{
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      padding:12px;
+      border-radius:16px;
+      background:rgba(212,175,55,0.06);
+      border:1px solid rgba(212,175,55,0.14);
+      color:rgba(240,230,200,0.82);
+      font-size:.82rem;
+      line-height:1.55;
+    }
+
+    .public-note-item b{
+      color:#d4af37;
+    }
+
+    .public-note-item .public-note-icon{
+      font-size:1.25rem;
+      line-height:1.2;
+      flex:0 0 auto;
+    }
+
+    .public-feature-card{
+      padding:0;
+      overflow:hidden;
+    }
+
+    .public-feature-body{
+      padding:16px 18px 18px;
+    }
+
+    .public-section-divider{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin:2px 0;
+      color:rgba(212,175,55,0.74);
+      font-family:'Cinzel', serif;
+      font-size:.85rem;
+      font-weight:700;
+      letter-spacing:1.4px;
+      text-transform:uppercase;
+    }
+
+    .public-section-divider::before,
+    .public-section-divider::after{
+      content:'';
+      height:1px;
+      flex:1;
+      background:linear-gradient(90deg, transparent, rgba(212,175,55,0.35), transparent);
+    }
+
+    .public-dev-layout{
+      display:flex;
+      gap:14px;
+      align-items:center;
+      margin-bottom:12px;
+    }
+
+    .public-dev-photo{
+      width:92px;
+      height:92px;
+      border-radius:24px;
+      object-fit:cover;
+      border:1px solid rgba(212,175,55,0.48);
+      box-shadow:0 0 18px rgba(212,175,55,0.14);
+      flex:0 0 auto;
+      background:#111;
+    }
+
+    .public-dev-photo-placeholder{
+      width:92px;
+      height:92px;
+      border-radius:24px;
+      border:1px dashed rgba(212,175,55,0.45);
+      background:radial-gradient(circle at 50% 28%, rgba(212,175,55,0.16), rgba(0,0,0,0.18));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      color:rgba(240,230,200,0.65);
+      font-size:.7rem;
+      line-height:1.25;
+      padding:8px;
+      flex:0 0 auto;
+    }
+
+    .public-dev-name{
+      color:#fff1a8;
+      font-weight:800;
+      font-size:.95rem;
+      line-height:1.3;
+    }
+
+    .public-dev-role{
+      color:rgba(240,230,200,0.62);
+      font-size:.78rem;
+      line-height:1.45;
+      margin-top:4px;
+    }
+
+    .auth-legal-links{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:7px 14px;
+      margin-top:6px;
+      padding:4px 0 6px;
+    }
+
+    .auth-legal-links a{
+      color:rgba(212,175,55,0.64);
+      font-family:'Poppins',sans-serif;
+      font-size:.76rem;
+      text-decoration:none;
+      letter-spacing:.3px;
+    }
+
+    .auth-legal-links a.danger-link{
+      color:rgba(180,80,80,0.68);
+    }
+
+    .auth-legal-links a:hover{
+      color:#d4af37;
+    }
+
+    .public-final-message{
+      border-radius:20px;
+      border:1px solid rgba(212,175,55,0.28);
+      background:linear-gradient(180deg, rgba(212,175,55,0.08), rgba(255,255,255,0.016));
+      padding:18px;
+    }
+
+    .public-final-message p{
+      color:rgba(240,230,200,0.86);
+      font-size:.87rem;
+      line-height:1.82;
+      margin:0 0 11px;
+    }
+
+    .public-final-message p:last-child{ margin-bottom:0; }
+    /* ═══ FIM CONTEÚDO PÚBLICO ═══ */
+
     @media (max-width: 700px){
       .auth-login-actions-grid{
         gap:10px;
@@ -455,9 +732,8 @@
         <div class="auth-login-actions-grid">
           <button type="button" id="btn-entrar" class="btn-mission gold-shine">ENTRAR</button>
           <button type="button" id="btn-recuperar-senha" class="auth-special-btn gray-glass">Recuperar Senha</button>
-          <a href="sobre.html" id="btn-sobre-app" class="auth-special-btn sobre-glass-btn"><span>ℹ️ SOBRE O APP</span></a>
           <button type="button" id="btn-compartilhar-app" class="auth-special-btn share-compact-glass"><span>✨ Compartilhe o App!</span></button>
-          <button type="button" id="btn-instalar-app-login" class="auth-special-btn share-compact-glass" style="grid-column:1/-1;"><span>📲 Baixe o App!</span></button>
+          <button type="button" id="btn-instalar-app-login" class="auth-special-btn share-compact-glass"><span>📲 Baixe o App!</span></button>
         </div>
 
         <div class="auth-login-footer-ad">
@@ -473,20 +749,228 @@
           <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
 
-        <!-- ── LINKS OBRIGATÓRIOS PLAY STORE ── -->
-        <nav style="
-          display:flex;
-          flex-wrap:wrap;
-          justify-content:center;
-          gap:6px 14px;
-          margin-top:16px;
-          padding-bottom:6px;
-        " aria-label="Links legais">
-          <a href="privacidade.html" style="color:rgba(212,175,55,0.6);font-family:'Poppins',sans-serif;font-size:.76rem;text-decoration:none;letter-spacing:.3px;" target="_blank" rel="noopener">🔒 Política de Privacidade</a>
-          <a href="termos.html"      style="color:rgba(212,175,55,0.6);font-family:'Poppins',sans-serif;font-size:.76rem;text-decoration:none;letter-spacing:.3px;" target="_blank" rel="noopener">📄 Termos de Uso</a>
-          <a href="excluir-conta.html" style="color:rgba(180,80,80,0.65);font-family:'Poppins',sans-serif;font-size:.76rem;text-decoration:none;letter-spacing:.3px;" target="_blank" rel="noopener">🗑️ Excluir Conta</a>
-        </nav>
+        <!-- ═══ CONTEÚDO PÚBLICO ABERTO — ANTIGO SOBRE O APP AGORA NA HOME ═══ -->
+        <section class="auth-public-content" aria-label="Conheça o Heróis da Fé">
+          <div class="public-hero-box">
+            <div class="public-kicker">⚜️ Conheça o app</div>
+            <h1 class="public-title">Heróis da Fé: uma jornada bíblica com leitura, desafios e comunhão.</h1>
+            <p class="public-subtitle">
+              O Heróis da Fé foi criado para ajudar cristãos a desenvolverem constância na leitura da Bíblia,
+              aprenderem mais sobre a Palavra de Deus e compartilharem uma experiência bíblica interativa com amigos.
+              Aqui, a leitura não fica esquecida: ela vira progresso, pontos, rankings, troféus e desafios bíblicos.
+            </p>
+          </div>
 
+          <div class="public-section-divider">Como funciona</div>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-biblia.png" alt="Tela da Bíblia no app Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-biblia">
+              <div class="placeholder-icon">📖</div>
+              <strong>Espaço reservado para o print da Bíblia</strong>
+              <span>Use aqui uma imagem da tela de leitura bíblica dentro do app.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>📖 Leitura bíblica com progresso</h3>
+              <p>
+                Dentro do app, o usuário escolhe o livro e o capítulo da Bíblia para ler. Conforme avança na leitura,
+                o sistema acompanha o progresso, ajudando cada pessoa a manter uma rotina espiritual mais organizada.
+              </p>
+              <p>
+                Ao concluir a leitura, o capítulo pode ficar marcado como lido. Isso ajuda o usuário a saber exatamente
+                onde parou, quais partes já concluiu e o quanto já caminhou em sua jornada bíblica.
+              </p>
+              <div class="public-note-list">
+                <div class="public-note-item"><span class="public-note-icon">✅</span><span><b>Marcação de leitura:</b> capítulos concluídos ficam registrados para facilitar a continuação depois.</span></div>
+                <div class="public-note-item"><span class="public-note-icon">⭐</span><span><b>Pontos e evolução:</b> a leitura pode gerar progresso, pontos e conquistas dentro da jornada.</span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-perguntas-leitura.png" alt="Perguntas bíblicas no fim da leitura"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-perguntas-leitura">
+              <div class="placeholder-icon">❓</div>
+              <strong>Espaço reservado para o print das perguntas</strong>
+              <span>Use aqui uma imagem da pergunta ou desafio bíblico após a leitura.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>🧠 Perguntas para aprender melhor</h3>
+              <p>
+                Após ler um texto bíblico, o usuário pode responder perguntas relacionadas ao conteúdo. Isso torna a leitura
+                mais ativa, porque a pessoa não apenas passa os olhos pelo texto: ela pensa, relembra e testa o que aprendeu.
+              </p>
+              <p>
+                Esse recurso ajuda a fixar a mensagem bíblica, reforçar o conhecimento das Escrituras e tornar o estudo mais
+                envolvente para jovens, adultos, novos convertidos e qualquer cristão que deseja crescer no conhecimento da Palavra.
+              </p>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-ranking-duelo.png" alt="Ranking de duelos do app Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-ranking-duelo">
+              <div class="placeholder-icon">⚔️</div>
+              <strong>Espaço reservado para o print do ranking de duelos</strong>
+              <span>Use aqui uma imagem da aba de ranking de duelos.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>⚔️ Ranking de duelos bíblicos</h3>
+              <p>
+                O ranking de duelos foi pensado para quem gosta de testar o conhecimento bíblico de forma divertida.
+                O usuário pode disputar com amigos e acompanhar seu desempenho nas vitórias, derrotas e desafios respondidos.
+              </p>
+              <p>
+                Para usar, o participante acessa o ranking ou o perfil de um amigo online, envia o desafio e responde às perguntas.
+                A disputa transforma o aprendizado em uma experiência dinâmica, saudável e motivadora.
+              </p>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-ranking-biblico.png" alt="Ranking bíblico de leitura no Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-ranking-biblico">
+              <div class="placeholder-icon">🏆</div>
+              <strong>Espaço reservado para o print do ranking bíblico</strong>
+              <span>Use aqui uma imagem da aba de ranking de leitura bíblica.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>🏆 Ranking bíblico de leitura</h3>
+              <p>
+                Além dos duelos, o Heróis da Fé também valoriza a dedicação na leitura. O ranking bíblico mostra o avanço dos
+                usuários conforme concluem capítulos, livros e etapas da jornada dentro da Bíblia.
+              </p>
+              <p>
+                A ideia não é substituir a vida devocional, mas incentivar a disciplina. Quanto mais o usuário lê, aprende e conclui,
+                mais ele visualiza seu crescimento dentro do app e se sente motivado a continuar.
+              </p>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-menu.png" alt="Menu do app Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-menu">
+              <div class="placeholder-icon">☰</div>
+              <strong>Espaço reservado para o print do menu</strong>
+              <span>Use aqui uma imagem do menu lateral do app.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>☰ Menu, perfil e atalhos da jornada</h3>
+              <p>
+                Pelo menu, o usuário encontra áreas importantes do app, como perfil, pontos, nível, amigos, Bíblia, ranking,
+                sala de troféus e outras ferramentas da jornada. É o ponto de acesso rápido para acompanhar a própria evolução.
+              </p>
+              <p>
+                O menu também ajuda o usuário a navegar pelo app sem complicação, mantendo tudo organizado em um ambiente visual
+                com tema bíblico, cores douradas e estilo de jornada espiritual.
+              </p>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-trofeus.png" alt="Sala de troféus do app Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-trofeus">
+              <div class="placeholder-icon">🏅</div>
+              <strong>Espaço reservado para o print da sala de troféus</strong>
+              <span>Use aqui uma imagem da sala de troféus/conquistas.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>🏅 Sala de troféus e conquistas</h3>
+              <p>
+                A sala de troféus registra conquistas alcançadas durante a caminhada no app. O usuário pode ganhar troféus ao ler,
+                participar, vencer desafios, manter sequência e completar objetivos importantes.
+              </p>
+              <p>
+                Esses troféus funcionam como marcos de incentivo. Cada conquista lembra que houve esforço, dedicação e avanço no
+                conhecimento bíblico e na participação dentro da comunidade.
+              </p>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-amigos.png" alt="Caixa de amigos do app Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-amigos">
+              <div class="placeholder-icon">👥</div>
+              <strong>Espaço reservado para o print da caixa de amigos</strong>
+              <span>Use aqui uma imagem da lista de amigos online.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>👥 Amigos online e interação cristã</h3>
+              <p>
+                Na área de amigos, o usuário pode ver quem está online, encontrar pessoas, conversar e convidar amigos para duelos
+                de perguntas bíblicas. Isso torna o app mais vivo, porque a jornada deixa de ser solitária e passa a ser compartilhada.
+              </p>
+              <p>
+                A interação entre amigos ajuda a criar comunhão, incentivo e momentos divertidos em torno da Bíblia. Um amigo pode
+                chamar o outro para ler, conversar sobre a Palavra ou participar de um desafio bíblico.
+              </p>
+            </div>
+          </article>
+
+          <article class="public-feature-card">
+            <!-- Quando tiver o print real, substitua este bloco por uma imagem: <img src="imagens/print-chat.png" alt="Bate-papo do app Heróis da Fé"> -->
+            <div class="public-screenshot-placeholder" data-print-reservado="print-chat">
+              <div class="placeholder-icon">💬</div>
+              <strong>Espaço reservado para o print do bate-papo</strong>
+              <span>Use aqui uma imagem do chat com mensagens, emojis, áudio ou imagens.</span>
+            </div>
+            <div class="public-feature-body">
+              <h3>💬 Bate-papo com texto, emojis, áudio e imagens</h3>
+              <p>
+                O chat permite conversar com amigos dentro do app. É possível escrever mensagens, usar emojis, enviar áudio e
+                compartilhar imagens, criando um espaço de conversa, amizade e troca de experiências sobre a Bíblia.
+              </p>
+              <p>
+                Esse recurso deixa a comunidade mais próxima. O usuário pode conversar sobre uma leitura, comentar um aprendizado,
+                chamar alguém para duelo ou simplesmente manter contato com amigos que também desejam aprender mais sobre Deus.
+              </p>
+            </div>
+          </article>
+
+          <div class="public-section-divider">Propósito espiritual</div>
+
+          <section class="public-final-message">
+            <p>
+              O Heróis da Fé não é apenas um app comum. Ele foi pensado como uma comunidade bíblica gamificada, focada em aproximar
+              pessoas da Palavra de Deus por meio de leitura, perguntas, desafios, amizade e acompanhamento de progresso.
+            </p>
+            <p>
+              A proposta é transformar momentos que muitas vezes seriam gastos apenas com distrações em oportunidades de crescimento
+              espiritual. Ao ler a Bíblia, responder perguntas e participar de desafios, o usuário fortalece a memória bíblica,
+              desenvolve disciplina e se envolve com conteúdos que edificam a fé cristã.
+            </p>
+            <p>
+              Para o cristão, o app pode servir como incentivo diário: uma forma de lembrar onde parou, celebrar o que já leu,
+              aprender com perguntas, acompanhar conquistas e compartilhar essa caminhada com outras pessoas. A tecnologia aqui é
+              usada como ferramenta para reforçar o conhecimento bíblico e estimular uma vida espiritual mais ativa.
+            </p>
+            <p>
+              O objetivo principal é simples: ajudar mais pessoas a lerem, aprenderem e permanecerem conectadas com a Palavra de Deus.
+            </p>
+          </section>
+
+          <section class="public-dev-card">
+            <div class="public-dev-layout">
+              <!-- Quando tiver sua foto, substitua este bloco por: <img class="public-dev-photo" src="imagens/elias-santana-bispo.jpg" alt="Elias Santana Bispo, desenvolvedor do Heróis da Fé"> -->
+              <div class="public-dev-photo-placeholder">FOTO DO<br>DESENVOLVEDOR</div>
+              <div>
+                <div class="public-dev-name">Desenvolvido e mantido por Elias Santana Bispo</div>
+                <div class="public-dev-role">Criador do Heróis da Fé e responsável pela manutenção do app.</div>
+              </div>
+            </div>
+            <p>
+              O projeto nasceu com o desejo de unir fé, aprendizado e tecnologia em uma experiência acessível para cristãos que
+              desejam crescer no conhecimento bíblico. Cada função foi pensada para incentivar leitura, participação e comunhão.
+            </p>
+          </section>
+
+          <!-- ── LINKS OBRIGATÓRIOS PLAY STORE E ADSENSE ── -->
+          <nav class="auth-legal-links" aria-label="Links legais">
+            <a href="privacidade.html" target="_blank" rel="noopener">🔒 Política de Privacidade</a>
+            <a href="termos.html" target="_blank" rel="noopener">📄 Termos de Uso</a>
+            <a href="excluir-conta.html" class="danger-link" target="_blank" rel="noopener">🗑️ Excluir Conta</a>
+          </nav>
+        </section>
       </form>
       <form id="form-cadastrar" class="auth-form" style="display:none;">
         <input type="text" id="reg-nome" placeholder="Nome" required maxlength="12" autocomplete="name"><small class="auth-field-tip">Máximo de 12 caracteres</small>
